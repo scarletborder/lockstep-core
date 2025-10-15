@@ -1,6 +1,6 @@
 module lockstep-core
 
-go 1.24.5
+go 1.25.3
 
 require (
 	github.com/google/wire v0.7.0
@@ -8,13 +8,10 @@ require (
 )
 
 require (
+	github.com/deckarep/golang-set/v2 v2.8.0
 	github.com/google/uuid v1.6.0
 	github.com/quic-go/quic-go v0.55.0
-)
-
-require (
-	github.com/deckarep/golang-set/v2 v2.8.0 // indirect
-	google.golang.org/protobuf v1.36.10 // indirect
+	google.golang.org/protobuf v1.36.10
 )
 
 require (
