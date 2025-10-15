@@ -1,7 +1,7 @@
 package room
 
 import (
-	"lockstep-core/src/clients"
+	"lockstep-core/src/logic/clients"
 	"lockstep-core/src/constants"
 	"log"
 	"sync"

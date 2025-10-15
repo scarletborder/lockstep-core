@@ -8,21 +8,46 @@ import (
 	"encoding/pem"
 	"log"
 	"math/big"
+	"net"
 	"os"
 	"time"
 )
 
-func GenerateTLSPEM() (privPEM, certPEM []byte, err error) {
+// GenerateTLSPEM 生成自签名 TLS 证书
+// host 参数可以是 IP 地址或域名，用于设置证书的 SAN (Subject Alternative Name)
+func GenerateTLSPEM(host string) (privPEM, certPEM []byte, err error) {
 	key, err := rsa.GenerateKey(rand.Reader, 2048)
 	if err != nil {
 		log.Fatalf("Failed to generate private key: %v", err)
 	}
+
+	// 解析主机地址，判断是 IP 还是域名
+	var dnsNames []string
+	var ipAddresses []net.IP
+
+	if ip := net.ParseIP(host); ip != nil {
+		// 是 IP 地址
+		ipAddresses = append(ipAddresses, ip)
+		log.Printf("Generating certificate for IP: %s", host)
+	} else {
+		// 是域名
+		dnsNames = append(dnsNames, host)
+		log.Printf("Generating certificate for domain: %s", host)
+	}
+
+	// 总是添加 localhost 和回环地址以便本地开发
+	dnsNames = append(dnsNames, "localhost")
+	ipAddresses = append(ipAddresses, net.ParseIP("127.0.0.1"), net.ParseIP("::1"))
+
 	template := x509.Certificate{
 		SerialNumber: big.NewInt(1),
 		NotBefore:    time.Now(),
 		NotAfter:     time.Now().Add(365 * 24 * time.Hour),
 		KeyUsage:     x509.KeyUsageKeyEncipherment | x509.KeyUsageDigitalSignature,
 		ExtKeyUsage:  []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
+		// 添加 SAN (Subject Alternative Name) 以支持现代浏览器
+		DNSNames:    dnsNames,
+		IPAddresses: ipAddresses,
 	}
 	certDER, err := x509.CreateCertificate(rand.Reader, &template, &template, &key.PublicKey, key)
 	if err != nil {
@@ -52,7 +77,9 @@ func GetTLSConfigFromPEM(certPEM, privPEM []byte) (*tls.Config, error) {
 	return GetTLSConfigFromCert(tlsCert), nil
 }
 
-func GetTLSFromPath(dir string) (*tls.Config, error) {
+// GetTLSFromPath 从指定路径加载或生成 TLS 配置
+// host 参数用于在生成新证书时设置 SAN
+func GetTLSFromPath(dir string, host string) (*tls.Config, error) {
 	certPath := dir + "/cert.pem"
 	keyPath := dir + "/key.pem"
 
@@ -60,12 +87,13 @@ func GetTLSFromPath(dir string) (*tls.Config, error) {
 	tlsCert, err := tls.LoadX509KeyPair(certPath, keyPath)
 
 	if err == nil {
+		log.Printf("Loaded existing TLS certificate from %s", dir)
 		return GetTLSConfigFromCert(tlsCert), nil
 	}
 
 	// 证书不存在或加载失败，生成新证书
 	log.Printf("Certificate not found in %s, generating new self-signed certificate...", dir)
-	privPEM, certPEM, err := GenerateTLSPEM()
+	privPEM, certPEM, err := GenerateTLSPEM(host)
 	if err != nil {
 		return nil, err
 	}

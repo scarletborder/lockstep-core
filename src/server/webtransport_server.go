@@ -1,6 +1,7 @@
 package server
 
 import (
+	"context"
 	"lockstep-core/src/config"
 	"log"
 	"net/http"
@@ -11,9 +12,10 @@ import (
 
 // WebTransportServer 封装 WebTransport 服务器
 type WebTransportServer struct {
-	config   *config.ServerConfig
-	wtServer *webtransport.Server
-	mux      *http.ServeMux
+	config     *config.ServerConfig
+	wtServer   *webtransport.Server
+	httpServer *http.Server
+	mux        *http.ServeMux
 }
 
 // NewWebTransportServer 创建一个新的 WebTransportServer
@@ -36,10 +38,18 @@ func NewWebTransportServer(cfg *config.ServerConfig) *WebTransportServer {
 		},
 	}
 
+	// 创建传统 HTTP/1.1 服务器（用于普通 HTTP 请求）
+	httpServer := &http.Server{
+		Addr:      cfg.Addr,
+		Handler:   mux,
+		TLSConfig: cfg.TLSConfig,
+	}
+
 	return &WebTransportServer{
-		config:   cfg,
-		wtServer: wtServer,
-		mux:      mux,
+		config:     cfg,
+		wtServer:   wtServer,
+		httpServer: httpServer,
+		mux:        mux,
 	}
 }
 
@@ -58,10 +68,39 @@ func (s *WebTransportServer) RegisterHandler(pattern string, handler http.Handle
 	s.mux.HandleFunc(pattern, handler)
 }
 
-// Start 启动服务器
+// Start 启动服务器（同时启动 HTTP/1.1 和 HTTP/3）
 func (s *WebTransportServer) Start() error {
-	log.Printf("Starting WebTransport server on %s", s.config.Addr)
+	// 在独立的 goroutine 中启动 HTTP/1.1 服务器
+	go func() {
+		log.Printf("Starting HTTP/1.1 server (TLS) on %s", s.config.Addr)
+		if err := s.httpServer.ListenAndServeTLS("", ""); err != nil && err != http.ErrServerClosed {
+			log.Printf("HTTP/1.1 server error: %v", err)
+		}
+	}()
+
+	// 启动 HTTP/3 服务器（主线程）
+	log.Printf("Starting HTTP/3 (WebTransport) server on %s", s.config.Addr)
 	return s.wtServer.ListenAndServe()
+}
+
+// Shutdown 优雅关闭服务器
+func (s *WebTransportServer) Shutdown(ctx context.Context) error {
+	log.Printf("Shutting down servers...")
+
+	// 关闭 HTTP/1.1 服务器
+	if err := s.httpServer.Shutdown(ctx); err != nil {
+		log.Printf("Error shutting down HTTP/1.1 server: %v", err)
+		return err
+	}
+
+	// 关闭 HTTP/3 服务器
+	if err := s.wtServer.Close(); err != nil {
+		log.Printf("Error shutting down HTTP/3 server: %v", err)
+		return err
+	}
+
+	log.Printf("Servers shut down successfully")
+	return nil
 }
 
 // UpgradeToWebTransport 升级 HTTP 连接到 WebTransport

@@ -111,8 +111,29 @@ func (h *HTTPHandlers) JoinRoomHandler(w http.ResponseWriter, r *http.Request) {
 	go h.sessionHandler.HandleSession(room, player)
 }
 
+// HealthCheckHandler 处理健康检查和根路径请求 (GET /)
+func (h *HTTPHandlers) HealthCheckHandler(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	response := map[string]interface{}{
+		"status":  "ok",
+		"message": "WebTransport server is running",
+		"endpoints": map[string]string{
+			"health":      "GET /",
+			"list_rooms":  "GET /rooms",
+			"create_room": "POST /rooms",
+			"join_room":   "WebTransport /join/{roomID}",
+		},
+	}
+	if err := json.NewEncoder(w).Encode(response); err != nil {
+		http.Error(w, "Failed to encode response", http.StatusInternalServerError)
+		return
+	}
+}
+
 // RegisterHandlers 注册所有 HTTP 处理器
 func (h *HTTPHandlers) RegisterHandlers() {
+	h.wtServer.RegisterHandler("/", h.HealthCheckHandler)
 	h.wtServer.RegisterHandler("/rooms", h.RoomsHandler)
 	h.wtServer.RegisterHandler("/join/", h.JoinRoomHandler)
 }

@@ -1,7 +1,7 @@
 package logic
 
 import (
-	"lockstep-core/src/clients"
+	"lockstep-core/src/logic/clients"
 	"lockstep-core/src/logic/room"
 )
 

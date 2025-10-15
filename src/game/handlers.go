@@ -1,7 +1,7 @@
 package game
 
 import (
-	"lockstep-core/src/clients"
+	"lockstep-core/src/logic/clients"
 	messages "lockstep-core/src/messages/pb"
 )
 
