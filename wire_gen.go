@@ -9,6 +9,7 @@ package main
 import (
 	"lockstep-core/src/config"
 	"lockstep-core/src/logic"
+	"lockstep-core/src/logic/room"
 	"lockstep-core/src/server"
 )
 
@@ -17,7 +18,7 @@ import (
 // InitializeApplication 初始化整个应用程序
 // Wire 会自动生成这个函数的实现
 func InitializeApplication() (*server.HTTPHandlers, error) {
-	roomManager := logic.NewRoomManager()
+	roomManager := room.NewRoomManager()
 	defaultPlayerSessionHandler := logic.NewDefaultPlayerSessionHandler()
 	serverConfig, err := config.NewDefaultConfig()
 	if err != nil {

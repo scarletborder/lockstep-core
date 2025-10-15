@@ -4,7 +4,7 @@ package logic
 
 import (
 	"lockstep-core/src/clients"
-	"lockstep-core/src/room"
+	"lockstep-core/src/logic/room"
 )
 
 // 类型别名，用于向后兼容

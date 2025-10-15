@@ -13,7 +13,6 @@ import (
 	"google.golang.org/protobuf/reflect/protoreflect"
 )
 
-// Room 代表一个游戏房间（整合了 old 的游戏逻辑）
 type Room struct {
 	// 基础属性
 	ID      string

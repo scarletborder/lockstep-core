@@ -2,7 +2,7 @@ package logic
 
 import (
 	"lockstep-core/src/clients"
-	"lockstep-core/src/room"
+	"lockstep-core/src/logic/room"
 )
 
 // RoomManagerInterface 定义房间管理器的接口
