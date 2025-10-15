@@ -5,12 +5,14 @@ PROTO_DIR=proto/
 
 # Output paths
 PROTO_BACKEND_PATH=src/messages/pb/
+OUTPUT_BIN_PATH=out
+
 
 # wire tool path
-WIRE_BIN=~/go/bin/wire
+WIRE_BIN=wire
 
 # Default target, execute all generation tasks
-all: gen wire
+all: gen wire build
 
 # Generate all proto files
 gen:
@@ -31,6 +33,12 @@ wire:
 	@echo "Generating wire dependency injection code..."
 	${WIRE_BIN} ./src/app
 	@echo "Wire generation complete."
+
+# build to binary
+build:
+	@echo "Building the Go application..."
+	go build -o $(OUTPUT_BIN_PATH)/ ./...
+	@echo "Build complete. Binary is located at $(OUTPUT_BIN_PATH)/"
 
 # Clean generated files
 clean:
