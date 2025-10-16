@@ -7,9 +7,9 @@
 export { LockstepClient } from './core';
 
 // 导出类型
-export type { InitOptions } from './core';
+export type { InitOptions, SafetyOptions } from './core';
 export { ConnectionState } from './requests/stream';
-export type { MessageHandlers } from './requests/stream';
+export type { MessageHandlers, UnidirectionalStreamOptions } from './requests/stream';
 
 // 导出 protobuf 类型
 export * from './types/pb/request';

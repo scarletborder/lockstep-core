@@ -242,6 +242,18 @@ type ServerConfig struct {
 }
 ```
 
+### TOML 配置
+
+服务器支持从 `config.toml` 文件读取配置。如果文件不存在，将使用默认配置。
+
+配置文件位置：`%APPDATA%\LockstepCoreServer\config.toml` (Windows)
+
+示例配置文件 (`config.example.toml`):
+```toml
+# 服务器监听地址
+Addr = "127.0.0.1:4433"
+```
+
 ## 调试
 
 ### 日志标记

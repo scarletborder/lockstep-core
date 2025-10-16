@@ -2,19 +2,32 @@ package main
 
 import (
 	"flag"
+	"fmt"
 	"lockstep-core/src/constants"
 	"lockstep-core/src/utils"
+	"lockstep-core/src/utils/tls"
 	"log"
+	"path/filepath"
 )
 
+func Verbose() {
+	fmt.Printf("%s version: %s\n", constants.APPNAME, constants.VERSION)
+	dataDir, _ := utils.GetApplicationDataDirectory(constants.APPNAME)
+	fmt.Printf("Data directory: %s\n", dataDir)
+	// other verbose info can be added here
+	// hash cert
+	dir, _ := utils.GetApplicationDataDirectory(constants.APPNAME)
+	certPath := filepath.Join(dir, constants.TLS_DIR, "cert.pem")
+	fmt.Println(tls.CertToHash(certPath))
+
+}
+
 func main() {
-	isVersion := flag.Bool("version", false, "Print the version and exit")
+	isVerbose := flag.Bool("v", false, "Print verbose output")
 	flag.Parse()
 
-	if *isVersion {
-		log.Printf("%s version: %s\n", constants.APPNAME, constants.VERSION)
-		dataDir, _ := utils.GetApplicationDataDirectory(constants.APPNAME)
-		log.Printf("Data directory: %s\n", dataDir)
+	if *isVerbose {
+		Verbose()
 		return
 	}
 

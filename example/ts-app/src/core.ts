@@ -20,6 +20,8 @@ export interface SafetyOptions {
   allowInsecureTransport?: boolean;
   /** 更广泛地放宽证书校验（等同于 allowSelfSigned，但命名更笼统一些） */
   allowAnyCert?: boolean;
+  /** 服务器证书哈希值（用于浏览器中信任自签名证书），SHA-256 十六进制字符串 */
+  serverCertificateHashes?: string[];
 }
 
 /**
@@ -146,8 +148,36 @@ export class LockstepClient {
     await this.createRoom(roomId);
     await this.joinRoom(roomId);
   }
+
+  // ============== 单向流测试方法 ==============
+
+  /**
+   * 连接到指定端点（用于测试非标准端点）
+   * @param endpoint 端点路径，如 '/unidirectional'
+   */
+  async connectToEndpoint(endpoint: string): Promise<void> {
+    await this.streamClient.connectToEndpoint(endpoint);
+  }
+
+  /**
+   * 创建单向流并发送数据
+   * @param data 要发送的数据
+   */
+  async createUnidirectionalStream(data: Uint8Array): Promise<void> {
+    await this.streamClient.createUnidirectionalStream({ data, waitForClose: true });
+  }
+
+  /**
+   * 批量创建单向流并发送数据
+   * @param count 流的数量
+   * @param data 要发送的数据
+   */
+  async createMultipleUnidirectionalStreams(count: number, data: Uint8Array): Promise<void> {
+    await this.streamClient.createMultipleUnidirectionalStreams(count, data);
+  }
 }
 
 // 导出相关类型
 export { ConnectionState, MessageHandlers };
 export type { Request, LobbyResponse, RoomResponse };
+export type { UnidirectionalStreamOptions } from './requests/stream';

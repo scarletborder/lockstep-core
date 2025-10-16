@@ -1,10 +1,13 @@
 package tls
 
 import (
+	"crypto/ecdsa"
+	"crypto/elliptic"
 	"crypto/rand"
-	"crypto/rsa"
 	"crypto/tls"
 	"crypto/x509"
+	"crypto/x509/pkix"
+	"encoding/binary"
 	"encoding/pem"
 	"log"
 	"math/big"
@@ -16,38 +19,31 @@ import (
 // GenerateTLSPEM 生成自签名 TLS 证书
 // host 参数可以是 IP 地址或域名，用于设置证书的 SAN (Subject Alternative Name)
 func GenerateTLSPEM(host string) (privPEM, certPEM []byte, err error) {
-	key, err := rsa.GenerateKey(rand.Reader, 2048)
+	// 生成随机序列号
+	b := make([]byte, 8)
+	if _, err := rand.Read(b); err != nil {
+		log.Fatalf("Failed to generate random serial number: %v", err)
+	}
+	serial := int64(binary.BigEndian.Uint64(b))
+	if serial < 0 {
+		serial = -serial
+	}
+
+	// 使用 ECDSA P-256 生成密钥对
+	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	if err != nil {
 		log.Fatalf("Failed to generate private key: %v", err)
 	}
 
-	// 解析主机地址，判断是 IP 还是域名
-	var dnsNames []string
-	var ipAddresses []net.IP
-
-	if ip := net.ParseIP(host); ip != nil {
-		// 是 IP 地址
-		ipAddresses = append(ipAddresses, ip)
-		log.Printf("Generating certificate for IP: %s", host)
-	} else {
-		// 是域名
-		dnsNames = append(dnsNames, host)
-		log.Printf("Generating certificate for domain: %s", host)
-	}
-
-	// 总是添加 localhost 和回环地址以便本地开发
-	dnsNames = append(dnsNames, "localhost")
-	ipAddresses = append(ipAddresses, net.ParseIP("127.0.0.1"), net.ParseIP("::1"))
-
 	template := x509.Certificate{
-		SerialNumber: big.NewInt(1),
-		NotBefore:    time.Now(),
-		NotAfter:     time.Now().Add(365 * 24 * time.Hour),
-		KeyUsage:     x509.KeyUsageKeyEncipherment | x509.KeyUsageDigitalSignature,
-		ExtKeyUsage:  []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
-		// 添加 SAN (Subject Alternative Name) 以支持现代浏览器
-		DNSNames:    dnsNames,
-		IPAddresses: ipAddresses,
+		SerialNumber:          big.NewInt(serial),
+		Subject:               pkix.Name{},
+		NotBefore:             time.Now(),
+		NotAfter:              time.Now().Add(365 * 24 * time.Hour),
+		IsCA:                  true,
+		ExtKeyUsage:           []x509.ExtKeyUsage{x509.ExtKeyUsageClientAuth, x509.ExtKeyUsageServerAuth},
+		KeyUsage:              x509.KeyUsageDigitalSignature | x509.KeyUsageCertSign,
+		BasicConstraintsValid: true,
 	}
 	certDER, err := x509.CreateCertificate(rand.Reader, &template, &template, &key.PublicKey, key)
 	if err != nil {

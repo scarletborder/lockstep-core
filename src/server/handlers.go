@@ -36,6 +36,9 @@ func (h *HTTPHandlers) ListRoomsHandler(w http.ResponseWriter, r *http.Request) 
 	roomIDs := h.roomManager.ListRooms()
 
 	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+	w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+	w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
 	if err := json.NewEncoder(w).Encode(roomIDs); err != nil {
 		http.Error(w, "Failed to encode response", http.StatusInternalServerError)
 		return
@@ -56,12 +59,22 @@ func (h *HTTPHandlers) CreateRoomHandler(w http.ResponseWriter, r *http.Request)
 	h.roomManager.GetOrCreateRoom(reqBody.RoomID)
 	log.Printf("Room created: %s", reqBody.RoomID)
 
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+	w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+	w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
 	w.WriteHeader(http.StatusCreated)
 	fmt.Fprintf(w, "Room %s created successfully", reqBody.RoomID)
 }
 
 // RoomsHandler 统一处理房间相关请求
 func (h *HTTPHandlers) RoomsHandler(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+	w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+	w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
+	if r.Method == http.MethodOptions {
+		w.WriteHeader(http.StatusOK)
+		return
+	}
 	switch r.Method {
 	case http.MethodGet:
 		h.ListRoomsHandler(w, r)
@@ -74,6 +87,7 @@ func (h *HTTPHandlers) RoomsHandler(w http.ResponseWriter, r *http.Request) {
 
 // JoinRoomHandler 处理加入房间的请求 (WebTransport /join/{roomID})
 func (h *HTTPHandlers) JoinRoomHandler(w http.ResponseWriter, r *http.Request) {
+	log.Printf("JoinRoomHandler called with path: %s", r.URL.Path)
 	roomID := strings.TrimPrefix(r.URL.Path, "/join/")
 	if roomID == "" {
 		http.Error(w, "Room ID is required", http.StatusBadRequest)
@@ -114,6 +128,9 @@ func (h *HTTPHandlers) JoinRoomHandler(w http.ResponseWriter, r *http.Request) {
 // HealthCheckHandler 处理健康检查和根路径请求 (GET /)
 func (h *HTTPHandlers) HealthCheckHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+	w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+	w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
 	w.WriteHeader(http.StatusOK)
 	response := map[string]interface{}{
 		"status":  "ok",
