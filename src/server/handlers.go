@@ -1,12 +1,13 @@
 package server
 
 import (
+	"crypto/sha256"
 	"encoding/json"
 	"fmt"
 	"lockstep-core/src/logic"
+	customTLS "lockstep-core/src/utils/tls"
 	"log"
 	"net/http"
-	"strings"
 
 	"github.com/google/uuid"
 )
@@ -85,14 +86,17 @@ func (h *HTTPHandlers) RoomsHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// JoinRoomHandler 处理加入房间的请求 (WebTransport /join/{roomID})
+// JoinRoomHandler 处理加入房间的请求 (WebTransport /join?roomid={roomID}&key={value})
 func (h *HTTPHandlers) JoinRoomHandler(w http.ResponseWriter, r *http.Request) {
 	log.Printf("JoinRoomHandler called with path: %s", r.URL.Path)
-	roomID := strings.TrimPrefix(r.URL.Path, "/join/")
+	queryParams := r.URL.Query()
+	roomID := queryParams.Get("roomid")
 	if roomID == "" {
-		http.Error(w, "Room ID is required", http.StatusBadRequest)
+		http.Error(w, "Missing roomID parameter", http.StatusBadRequest)
 		return
 	}
+	key := queryParams.Get("key") // 可选密钥参数
+	_ = key                       // TODO:目前未使用密钥
 
 	room := h.roomManager.GetOrCreateRoom(roomID)
 
@@ -132,14 +136,18 @@ func (h *HTTPHandlers) HealthCheckHandler(w http.ResponseWriter, r *http.Request
 	w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
 	w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
 	w.WriteHeader(http.StatusOK)
+
+	hash := sha256.Sum256((h.wtServer.config.TLSConfig.Certificates[0].Leaf.Raw))
+
 	response := map[string]interface{}{
 		"status":  "ok",
 		"message": "WebTransport server is running",
+		"hash":    customTLS.FormatByteSlice(hash[:]),
 		"endpoints": map[string]string{
 			"health":      "GET /",
 			"list_rooms":  "GET /rooms",
 			"create_room": "POST /rooms",
-			"join_room":   "WebTransport /join/{roomID}",
+			"join_room":   "WebTransport /join?roomid={roomID}&key={value}",
 		},
 	}
 	if err := json.NewEncoder(w).Encode(response); err != nil {
@@ -152,7 +160,7 @@ func (h *HTTPHandlers) HealthCheckHandler(w http.ResponseWriter, r *http.Request
 func (h *HTTPHandlers) RegisterHandlers() {
 	h.wtServer.RegisterHandler("/", h.HealthCheckHandler)
 	h.wtServer.RegisterHandler("/rooms", h.RoomsHandler)
-	h.wtServer.RegisterHandler("/join/", h.JoinRoomHandler)
+	h.wtServer.RegisterHandler("/join", h.JoinRoomHandler)
 }
 
 // Start 启动服务器

@@ -11,106 +11,155 @@ import (
 	"encoding/pem"
 	"log"
 	"math/big"
-	"net"
 	"os"
+	"path/filepath"
 	"time"
 )
 
-// GenerateTLSPEM 生成自签名 TLS 证书
-// host 参数可以是 IP 地址或域名，用于设置证书的 SAN (Subject Alternative Name)
-func GenerateTLSPEM(host string) (privPEM, certPEM []byte, err error) {
-	// 生成随机序列号
+func generateCert() (*x509.Certificate, *ecdsa.PrivateKey, error) {
+	// default valid for 10 days
+	start := time.Now()
+	end := start.Add(10 * 24 * time.Hour)
+
 	b := make([]byte, 8)
 	if _, err := rand.Read(b); err != nil {
-		log.Fatalf("Failed to generate random serial number: %v", err)
+		return nil, nil, err
 	}
 	serial := int64(binary.BigEndian.Uint64(b))
 	if serial < 0 {
 		serial = -serial
 	}
-
-	// 使用 ECDSA P-256 生成密钥对
-	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
-	if err != nil {
-		log.Fatalf("Failed to generate private key: %v", err)
-	}
-
-	template := x509.Certificate{
+	certTempl := &x509.Certificate{
 		SerialNumber:          big.NewInt(serial),
 		Subject:               pkix.Name{},
-		NotBefore:             time.Now(),
-		NotAfter:              time.Now().Add(365 * 24 * time.Hour),
+		NotBefore:             start,
+		NotAfter:              end,
 		IsCA:                  true,
 		ExtKeyUsage:           []x509.ExtKeyUsage{x509.ExtKeyUsageClientAuth, x509.ExtKeyUsageServerAuth},
 		KeyUsage:              x509.KeyUsageDigitalSignature | x509.KeyUsageCertSign,
 		BasicConstraintsValid: true,
 	}
-	certDER, err := x509.CreateCertificate(rand.Reader, &template, &template, &key.PublicKey, key)
+	caPrivateKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	if err != nil {
-		log.Fatalf("Failed to create certificate: %v", err)
+		return nil, nil, err
 	}
-	privBytes, err := x509.MarshalPKCS8PrivateKey(key)
+	caBytes, err := x509.CreateCertificate(rand.Reader, certTempl, certTempl, &caPrivateKey.PublicKey, caPrivateKey)
 	if err != nil {
-		log.Fatalf("Failed to marshal private key: %v", err)
+		return nil, nil, err
 	}
-	certPEM = pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: certDER})
-	privPEM = pem.EncodeToMemory(&pem.Block{Type: "PRIVATE KEY", Bytes: privBytes})
-	return privPEM, certPEM, nil
+	ca, err := x509.ParseCertificate(caBytes)
+	if err != nil {
+		return nil, nil, err
+	}
+	return ca, caPrivateKey, nil
 }
 
-func GetTLSConfigFromCert(tlsCert tls.Certificate) *tls.Config {
-	return &tls.Config{
-		Certificates: []tls.Certificate{tlsCert},
-		NextProtos:   []string{"h3"},
+func saveCertAndKey(cert *x509.Certificate, priv *ecdsa.PrivateKey, certPath string, keyPath string) error {
+	// makedir -p
+	certDir := filepath.Dir(certPath)
+	if err := os.MkdirAll(certDir, 0755); err != nil {
+		return err
 	}
-}
+	keyDir := filepath.Dir(keyPath)
+	if err := os.MkdirAll(keyDir, 0755); err != nil {
+		return err
+	}
 
-func GetTLSConfigFromPEM(certPEM, privPEM []byte) (*tls.Config, error) {
-	tlsCert, err := tls.X509KeyPair(certPEM, privPEM)
+	// --- 保存证书文件 ---
+	certOut, err := os.Create(certPath)
 	if err != nil {
-		return nil, err
+		return err
 	}
-	return GetTLSConfigFromCert(tlsCert), nil
+	defer certOut.Close()
+
+	certBlock := &pem.Block{
+		Type:  "CERTIFICATE",
+		Bytes: cert.Raw,
+	}
+
+	if err := pem.Encode(certOut, certBlock); err != nil {
+		return err
+	}
+	log.Printf("Certificate saved to %s", certPath)
+
+	// --- 保存私钥文件 ---
+	keyOut, err := os.Create(keyPath)
+	if err != nil {
+		return err
+	}
+	defer keyOut.Close()
+
+	// 将ECDSA私钥序列化为DER格式
+	privBytes, err := x509.MarshalECPrivateKey(priv)
+	if err != nil {
+		return err
+	}
+
+	keyBlock := &pem.Block{
+		Type:  "EC PRIVATE KEY", // 使用 "EC PRIVATE KEY" 更具体
+		Bytes: privBytes,
+	}
+
+	if err := pem.Encode(keyOut, keyBlock); err != nil {
+		return err
+	}
+	log.Printf("Private key saved to %s", keyPath)
+
+	return nil
 }
 
-// GetTLSFromPath 从指定路径加载或生成 TLS 配置
+// GetTLSConfigFromPath 从指定路径加载或生成 TLS 配置
 // host 参数用于在生成新证书时设置 SAN
-func GetTLSFromPath(dir string, host string) (*tls.Config, error) {
+func GetTLSConfigFromPath(dir string, host string) (*tls.Config, error) {
 	certPath := dir + "/cert.pem"
 	keyPath := dir + "/key.pem"
-
-	// 尝试从磁盘加载证书
-	tlsCert, err := tls.LoadX509KeyPair(certPath, keyPath)
-
-	if err == nil {
-		log.Printf("Loaded existing TLS certificate from %s", dir)
-		return GetTLSConfigFromCert(tlsCert), nil
+	needGenerate := false
+	// 测试文件是否存在
+	if _, err := os.Stat(certPath); os.IsNotExist(err) {
+		log.Printf("Certificate file %s does not exist.", certPath)
+		needGenerate = true
+	} else if err != nil {
+		log.Fatalf("can not access cert file %s, please remove it manually", err.Error())
 	}
 
-	// 证书不存在或加载失败，生成新证书
-	log.Printf("Certificate not found in %s, generating new self-signed certificate...", dir)
-	privPEM, certPEM, err := GenerateTLSPEM(host)
-	if err != nil {
-		return nil, err
+	if _, err := os.Stat(keyPath); os.IsNotExist(err) {
+		log.Printf("Key file %s does not exist.", keyPath)
+		needGenerate = true
+	} else if err != nil {
+		log.Fatalf("can not access key file %s, please remove it manually", err.Error())
 	}
 
-	// 确保目录存在
-	if err := os.MkdirAll(dir, 0755); err != nil {
-		log.Fatalf("Failed to create directory %s: %v", dir, err)
-	}
+	if needGenerate {
+		cert, priv, err := generateCert()
+		if err != nil {
+			return nil, err
+		}
+		// save to disk
+		if err := saveCertAndKey(cert, priv, certPath, keyPath); err != nil {
+			log.Fatalf("can not save cert and key file to disk:%s", err.Error())
+			return nil, err
+		}
 
-	// 保存证书到磁盘
-	if err := os.WriteFile(certPath, certPEM, 0644); err != nil {
-		log.Fatalf("Failed to write certificate to %s: %v", certPath, err)
-	}
-	if err := os.WriteFile(keyPath, privPEM, 0600); err != nil {
-		log.Fatalf("Failed to write private key to %s: %v", keyPath, err)
-	}
+		return &tls.Config{
+			Certificates: []tls.Certificate{{
+				Certificate: [][]byte{cert.Raw},
+				PrivateKey:  priv,
+				Leaf:        cert,
+			}},
+		}, nil
+	} else {
+		// load from disk
+		log.Printf("Loading certificate and key from %s and %s", certPath, keyPath)
 
-	log.Printf("Successfully generated and saved TLS certificate to %s", dir)
-	tlsConfig, err := GetTLSConfigFromPEM(certPEM, privPEM)
-	if err != nil {
-		return nil, err
+		// 使用 tls.LoadX509KeyPair 直接从文件加载并构建 tls.Certificate
+		cert, err := tls.LoadX509KeyPair(certPath, keyPath)
+		if err != nil {
+			return nil, err
+		}
+
+		log.Println("Successfully loaded certificate and key from disk.")
+		return &tls.Config{
+			Certificates: []tls.Certificate{cert},
+		}, nil
 	}
-	return tlsConfig, nil
 }

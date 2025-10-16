@@ -60,7 +60,7 @@ func NewDefaultConfig() (*ServerConfig, error) {
 
 	// tls config
 	tlsDir := filepath.Join(dataDir, constants.TLS_DIR)
-	tlsConfig, err := customTLS.GetTLSFromPath(tlsDir, host)
+	tlsConfig, err := customTLS.GetTLSConfigFromPath(tlsDir, host)
 	if err != nil {
 		return nil, err
 	}

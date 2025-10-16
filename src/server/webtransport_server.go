@@ -24,12 +24,13 @@ func NewWebTransportServer(cfg *config.ServerConfig) *WebTransportServer {
 
 	wtServer := &webtransport.Server{
 		H3: http3.Server{
+			TLSConfig: cfg.TLSConfig,
 			Addr:      cfg.Addr,
 			Handler:   mux,
-			TLSConfig: cfg.TLSConfig,
 		},
 		CheckOrigin: func(r *http.Request) bool {
 			if !cfg.CheckOriginEnabled {
+				// 不检查来源，允许所有连接（仅用于开发环境）
 				return true
 			}
 			// 在生产环境中应进行严格的来源检查
@@ -105,10 +106,10 @@ func (s *WebTransportServer) Shutdown(ctx context.Context) error {
 
 // UpgradeToWebTransport 升级 HTTP 连接到 WebTransport
 func (s *WebTransportServer) UpgradeToWebTransport(w http.ResponseWriter, r *http.Request) (*webtransport.Session, error) {
-	session, err := s.wtServer.Upgrade(w, r)
+	conn, err := s.wtServer.Upgrade(w, r)
 	if err != nil {
 		log.Printf("Failed to upgrade to WebTransport: %v", err)
 		return nil, err
 	}
-	return session, nil
+	return conn, nil
 }

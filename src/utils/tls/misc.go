@@ -58,3 +58,9 @@ func toHexWithColons(data []byte) string {
 	}
 	return strings.Join(hexParts, ":")
 }
+
+func FormatByteSlice(b []byte) string {
+	s := strings.ReplaceAll(fmt.Sprintf("%#v", b[:]), "[]byte{", "[")
+	s = strings.ReplaceAll(s, "}", "]")
+	return s
+}
