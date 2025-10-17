@@ -1,49 +1,43 @@
 package config
 
 import (
-	"crypto/tls"
 	"lockstep-core/src/constants"
 	"lockstep-core/src/utils"
 	customTLS "lockstep-core/src/utils/tls"
+	"log"
 	"os"
 	"path/filepath"
 
 	"github.com/BurntSushi/toml"
 )
 
-// ServerConfig 包含服务器的配置信息
-type ServerConfig struct {
-	GeneralConfig
-	LockstepConfig
-
-	// TLS 配置
-	TLSConfig *tls.Config
-
-	// 是否启用 Origin 检查
-	CheckOriginEnabled bool
-}
-
-// NewDefaultConfig 创建默认配置
-func NewDefaultConfig() (*ServerConfig, error) {
-	// 获取 TLS 证书路径
-	dataDir, err := utils.GetApplicationDataDirectory(constants.APPNAME)
-	if err != nil {
-		return nil, err
+// NewDefaultConfig 从本地目录创建默认配置
+func NewDefaultConfig(dataDir *string) (*RuntimeConfig, error) {
+	var err error
+	if dataDir == nil {
+		// 获取 TLS 证书路径
+		rdataDir, err := utils.GetApplicationDataDirectory(constants.APPNAME)
+		if err != nil {
+			return nil, err
+		}
+		dataDir = &rdataDir
 	}
 
 	// general config
-	generalCfgPath := filepath.Join(dataDir, constants.CONFIG)
-	generalCfg := GeneralConfig{Addr: "127.0.0.1:4433"} // 默认值
+	var generalCfg GeneralConfig
+	generalCfgPath := filepath.Join(*dataDir, constants.CONFIG)
 
 	if _, err := os.Stat(generalCfgPath); err == nil {
 		// 文件存在，尝试读取
 		if _, err := toml.DecodeFile(generalCfgPath, &generalCfg); err != nil {
 			// 读取失败，使用默认值
+			log.Printf("读取配置文件 %s 失败，使用默认配置: %v", generalCfgPath, err)
+			generalCfg.ApplyDefaults()
 		}
 	}
 
 	// 从地址中提取主机部分用于证书生成
-	host := generalCfg.Addr
+	host := *generalCfg.Addr
 	// 如果地址包含端口，去掉端口部分
 	if colonIndex := len(host) - 1; colonIndex > 0 {
 		for i := len(host) - 1; i >= 0; i-- {
@@ -55,46 +49,15 @@ func NewDefaultConfig() (*ServerConfig, error) {
 	}
 
 	// tls config
-	tlsDir := filepath.Join(dataDir, constants.TLS_DIR)
+	tlsDir := filepath.Join(*dataDir, constants.TLS_DIR)
 	tlsConfig, err := customTLS.GetTLSConfigFromPath(tlsDir, host)
 	if err != nil {
 		return nil, err
 	}
 
-	return &ServerConfig{
+	return &RuntimeConfig{
 		GeneralConfig:      generalCfg,
-		LockstepConfig:     LockstepConfig{FrameInterval: 66, MaxDelayFrames: 5}, // 默认值
 		TLSConfig:          tlsConfig,
 		CheckOriginEnabled: false, // 生产环境建议启用
 	}, nil
-}
-
-// WithLockstepConfig 设置帧同步配置
-// 由外部项目使用时调用
-func (c *ServerConfig) WithLockstepConfig(o LockstepConfig) *ServerConfig {
-	if o.FrameInterval != 0 {
-		c.FrameInterval = o.FrameInterval
-	}
-	if o.MaxDelayFrames != 0 {
-		c.MaxDelayFrames = o.MaxDelayFrames
-	}
-	return c
-}
-
-// WithAddr 设置服务器地址
-func (c *ServerConfig) WithAddr(addr string) *ServerConfig {
-	c.Addr = addr
-	return c
-}
-
-// WithTLSConfig 设置 TLS 配置
-func (c *ServerConfig) WithTLSConfig(tlsConfig *tls.Config) *ServerConfig {
-	c.TLSConfig = tlsConfig
-	return c
-}
-
-// WithCheckOrigin 设置是否检查 Origin
-func (c *ServerConfig) WithCheckOrigin(enabled bool) *ServerConfig {
-	c.CheckOriginEnabled = enabled
-	return c
 }
