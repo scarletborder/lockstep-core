@@ -10,5 +10,6 @@ type LockstepConfig struct {
 	FrameInterval uint32
 
 	// 最大延迟帧数,接受迟到帧
-	MaxDelayFrames uint32
+	// -1 为不限制
+	MaxDelayFrames int32
 }
