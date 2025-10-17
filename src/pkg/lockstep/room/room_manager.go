@@ -2,6 +2,7 @@ package room
 
 import (
 	"fmt"
+	"lockstep-core/src/config"
 	"log"
 	"sync"
 )
@@ -12,13 +13,17 @@ type RoomManager struct {
 	mutex sync.RWMutex
 	// 传入roomid,用于接收房间的停止信号
 	stopChan chan uint32
+
+	// cfg
+	config.LockstepConfig
 }
 
 // NewRoomManager 创建一个新的 RoomManager 实例
-func NewRoomManager() *RoomManager {
+func NewRoomManager(cfg *config.ServerConfig) *RoomManager {
 	rm := &RoomManager{
-		rooms:    make(map[uint32]*Room),
-		stopChan: make(chan uint32, 100), // 缓冲通道
+		rooms:          make(map[uint32]*Room),
+		stopChan:       make(chan uint32, 100), // 缓冲通道
+		LockstepConfig: cfg.LockstepConfig,
 	}
 
 	// 启动监听房间停止信号的 goroutine
@@ -56,8 +61,9 @@ func (rm *RoomManager) CreateRoom(roomID uint32, name string, key string) *Room 
 		name = fmt.Sprint("room_%v", roomID)
 	}
 	room := NewRoom(roomID, rm.stopChan, RoomOptions{
-		name: name,
-		key:  key,
+		name:           name,
+		key:            key,
+		LockstepConfig: rm.LockstepConfig,
 	})
 	rm.rooms[roomID] = room
 
