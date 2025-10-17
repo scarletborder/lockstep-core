@@ -2,10 +2,11 @@ package room
 
 import (
 	"crypto/subtle"
+	"lockstep-core/src/config"
 	"lockstep-core/src/constants"
 	"lockstep-core/src/logic/clients"
+	lockstep_sync "lockstep-core/src/pkg/lockstep/sync"
 	"log"
-	"math/rand"
 	"runtime/debug"
 	"sync"
 	"time"
@@ -13,78 +14,108 @@ import (
 	"google.golang.org/protobuf/reflect/protoreflect"
 )
 
-type Room struct {
-	// 基础属性
-	ID      string
-	RoomCtx *RoomContext
-	// Logic   *GameLogic // TODO: 后续整合游戏逻辑
-
-	// 网络通道
-	register         chan *clients.Player
-	unregister       chan *clients.Player
+type DataChannel struct {
+	// 客户端session用于发送注册信息
+	register chan *clients.Player
+	// 客户端session用于发送解除注册信息
+	unregister chan *clients.Player
+	// 客户端用于发送bytes消息
 	incomingMessages chan *clients.PlayerMessage
 	// ingameOperations chan *messages.InGameOperation // TODO: 整合 protobuf 消息
+}
 
+func (dc *DataChannel) Reset() {
+	// 重置通道（关闭旧通道，创建新通道）
+	dc.register = make(chan *clients.Player, 8)
+	dc.unregister = make(chan *clients.Player, 8)
+	dc.incomingMessages = make(chan *clients.PlayerMessage, 128)
+	// dc.ingameOperations = make(chan *messages.InGameOperation, 128)
+}
+
+type Room struct {
+	// 基础属性
+	ID   uint32
+	Name string
 	// 安全
 	key string // 房间密钥
 
-	// 游戏状态
-	GameStage *constants.AtomStage
-	ChapterID uint32
-	StageID   uint32
-	Seed      int32
+	// Logic   *GameLogic // TODO: 后续整合游戏逻辑
 
-	// 生命周期管理
-	destroyOnce    sync.Once
-	LastActiveTime time.Time     // 上次活动时间
-	StopChan       chan<- string // 通知房间管理器的停止信号通道
+	// 共享数据通道
+	DataChannel
+
+	// lockstep sync
+	// ticker
+	GameTicker *time.Ticker
+	// data
+	SyncData *lockstep_sync.ServerSyncData
+	// config
+	config.LockstepConfig
+
+	// 房间Life Cycle生命周期管理
+	GameStage constants.AtomStage // 房间当前状态
+
+	// 是否已经摧毁本房间
+	destroyOnce sync.Once
+	// 房间上次活动时间
+	LastActiveTime time.Time
+	// 传入本房间id,通知房间管理器的停止信号通道
+	StopChan chan<- uint32
+}
+
+type RoomOptions struct {
+	key  string
+	name string // 房间密钥
+	config.LockstepConfig
 }
 
 // NewRoom 创建一个新的游戏房间
-func NewRoom(id string, stopChan chan string) *Room {
+func NewRoom(id uint32, stopChan chan uint32, o RoomOptions) *Room {
 	// gameOperationChan := make(chan *messages.InGameOperation, 128)
 	// logic := NewGameLogic(gameOperationChan)
-	seed := rand.Int31n(40960000) // 随机种子
 
-	return &Room{
-		ID:      id,
-		RoomCtx: NewRoomContext(),
-		// Logic:   logic,
-
-		ChapterID: 0,
-		StageID:   0,
-		Seed:      seed,
-
-		LastActiveTime: time.Now(),
-		key:            "",
-		GameStage:      constants.NewAtomStage(constants.STAGE_InLobby),
-		StopChan:       stopChan,
-		destroyOnce:    sync.Once{},
-
-		// 网络
+	var channel = DataChannel{
 		register:         make(chan *clients.Player, 8),
 		unregister:       make(chan *clients.Player, 8),
 		incomingMessages: make(chan *clients.PlayerMessage, 128),
 		// ingameOperations: gameOperationChan,
 	}
+
+	return &Room{
+		ID:   id,
+		Name: o.name,
+		key:  o.key,
+
+		// lockstep
+		GameTicker:     nil,
+		SyncData:       lockstep_sync.NewServerSyncData(),
+		LockstepConfig: o.LockstepConfig,
+		// 网络
+		DataChannel: channel,
+		// ingameOperations: gameOperationChan,
+
+		GameStage:      *constants.NewAtomStage(constants.STAGE_InLobby),
+		LastActiveTime: time.Now(),
+		StopChan:       stopChan,
+		destroyOnce:    sync.Once{},
+	}
 }
 
 // Reset 重置房间为大厅状态，以允许下一场游戏
 func (room *Room) Reset() {
-	room.RoomCtx.Reset()
+	// lockstep sync reset
+	room.SyncData.Reset()
+	if room.GameTicker != nil {
+		room.GameTicker.Stop()
+		room.GameTicker = nil
+	}
 	// room.Logic.Reset()
 
 	// room 本身 reset
-	room.ChapterID = 0
-	room.StageID = 0
-	room.Seed = rand.Int31n(40960000)             // 重置随机种子
 	room.LastActiveTime = time.Now()              // 重置最后活动时间
 	room.GameStage.Store(constants.STAGE_InLobby) // 重置游戏状态为大厅
-
-	// 清空 ingameOperations
-	// for len(room.ingameOperations) > 0 {
-	// 	<-room.ingameOperations
-	// }
+	// 清空共享数据,ingameOperations
+	room.DataChannel.Reset()
 }
 
 // Destroy 摧毁房间
@@ -108,9 +139,9 @@ func (room *Room) Destroy() {
 		room.GameStage.Store(constants.STAGE_CLOSED)
 
 		// 停止定时器
-		if room.RoomCtx.GameTicker != nil {
-			room.RoomCtx.GameTicker.Stop()
-			room.RoomCtx.GameTicker = nil
+		if room.GameTicker != nil {
+			room.GameTicker.Stop()
+			room.GameTicker = nil
 		}
 
 		room.RoomCtx.CloseAll()

@@ -11,19 +11,6 @@ import (
 	"github.com/BurntSushi/toml"
 )
 
-type GeneralConfig struct {
-	// 服务器监听地址
-	Addr string
-}
-
-type LockstepConfig struct {
-	// 帧间隔
-	FrameInterval uint32
-
-	// 最大延迟帧数,接受迟到帧
-	MaxDelayFrames uint32
-}
-
 // ServerConfig 包含服务器的配置信息
 type ServerConfig struct {
 	GeneralConfig

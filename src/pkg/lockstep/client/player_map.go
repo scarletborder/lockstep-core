@@ -1,4 +1,4 @@
-package player
+package client
 
 import "sync"
 
@@ -8,17 +8,17 @@ type PlayerMap struct {
 }
 
 // Store 存储玩家
-func (pm *PlayerMap) Store(key int, value *Player) {
+func (pm *PlayerMap) Store(key int, value *Client) {
 	pm.m.Store(key, value)
 }
 
 // Load 加载玩家
-func (pm *PlayerMap) Load(key int) (*Player, bool) {
+func (pm *PlayerMap) Load(key int) (*Client, bool) {
 	v, ok := pm.m.Load(key)
 	if !ok {
 		return nil, false
 	}
-	p, ok := v.(*Player)
+	p, ok := v.(*Client)
 	return p, ok
 }
 
@@ -28,10 +28,10 @@ func (pm *PlayerMap) Delete(key int) {
 }
 
 // Range 遍历所有玩家
-func (pm *PlayerMap) Range(f func(key int, value *Player) bool) {
+func (pm *PlayerMap) Range(f func(key int, value *Client) bool) {
 	pm.m.Range(func(k, v interface{}) bool {
 		ki, ok1 := k.(int)
-		vp, ok2 := v.(*Player)
+		vp, ok2 := v.(*Client)
 		if !ok1 || !ok2 {
 			return true
 		}

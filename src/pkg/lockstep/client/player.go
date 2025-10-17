@@ -1,91 +1,97 @@
-package player
+package client
 
 import (
+	"lockstep-core/src/pkg/lockstep/session"
+	lockstep_sync "lockstep-core/src/pkg/lockstep/sync"
 	"log"
 	"sync"
 )
 
-// PlayerMessage 直接转发客户端传来的数据
-type PlayerMessage struct {
-	Player *Player // 发送消息的玩家
-	Data   []byte  // 二进制消息内容
+// ClientMessage
+// client session转发到room的消息
+type ClientMessage struct {
+	Client *Client // 发送消息的玩家
+
+	// 二进制消息内容
+	// 实际是 本框架的基础类型 + 拓展bytes
+	Data []byte
 }
 
 var playerMessagePool = sync.Pool{
 	New: func() interface{} {
-		return new(PlayerMessage)
+		return new(ClientMessage)
 	},
 }
 
-// GetPlayerMessage 从对象池获取 PlayerMessage
-func GetPlayerMessage(player *Player, data []byte) *PlayerMessage {
-	msg := playerMessagePool.Get().(*PlayerMessage)
-	msg.Player = player
+// GetPlayerMessage
+// 从对象池获取并赋值一个 PlayerMessage
+func GetPlayerMessage(client *Client, data []byte) *ClientMessage {
+	msg := playerMessagePool.Get().(*ClientMessage)
+	msg.Client = client
 	msg.Data = data
 	return msg
 }
 
-// ReleasePlayerMessage 将 PlayerMessage 放回对象池
-func ReleasePlayerMessage(msg *PlayerMessage) {
-	msg.Player = nil
+// ReleasePlayerMessage
+// 消费结束某消息后将 PlayerMessage 释放回对象池
+func ReleasePlayerMessage(msg *ClientMessage) {
+	msg.Client = nil
 	msg.Data = nil
 	playerMessagePool.Put(msg)
 }
 
-// Player 代表一个游戏玩家 (适配 WebTransport)
-type Player struct {
-	Ctx      *PlayerContext        // 玩家上下文
-	SendChan chan<- *PlayerMessage // 发送消息到服务器的通道
+// Client 代表一个客户端
+// 已和游戏世界逻辑解耦
+type Client struct {
+	// 客户端会话
+	Session session.ISession
+	// 持有对 "发送消息到服务器的通道" 的引用
+	SendChan chan<- *ClientMessage
 
-	// 游戏相关状态
+	// lockstep
+	lockstep_sync.ClientSyncData
+
+	// 房间Life Cycle生命周期相关状态
 	IsReady  bool // 是否准备好
 	IsLoaded bool // 是否加载完毕
 
 	// 游戏数据 (用于防作弊验证)
-	LastEnergySum  int32 // 上一次用户的能量总和
-	LastStarShards int32 // 上一次用户的星之碎片
+	// Deprecated, 在游戏世界中做验证
+	// LastEnergySum  int32 // 上一次用户的能量总和
+	// LastStarShards int32 // 上一次用户的星之碎片
 }
 
-// NewPlayer 创建一个新的玩家实例
-func NewPlayer(ctx *PlayerContext, sendChan chan<- *PlayerMessage) *Player {
-	return &Player{
-		Ctx:            ctx,
+// NewClient 创建一个新的玩家实例
+func NewClient(uid uint32, sess session.ISession, sendChan chan<- *ClientMessage) *Client {
+	return &Client{
+		Session:        sess,
 		IsReady:        false,
 		IsLoaded:       false,
 		SendChan:       sendChan,
-		LastEnergySum:  0,
-		LastStarShards: 0,
+		ClientSyncData: *lockstep_sync.NewClientSyncData(uid),
 	}
 }
 
 // ResetData 重置玩家的游戏数据
-func (p *Player) ResetData() {
+func (p *Client) ResetData() {
 	p.IsReady = false
 	p.IsLoaded = false
-	p.LastEnergySum = 0
-	p.LastStarShards = 0
-	if p.Ctx != nil {
-		p.Ctx.LatestFrameID.Store(0)
-		p.Ctx.LatestAckFrameID.Store(0)
-	}
+	p.ClientSyncData.Reset()
 }
 
 // GetID 获取玩家 ID
-func (p *Player) GetID() int {
-	if p == nil || p.Ctx == nil {
-		return -1
-	}
-	return p.Ctx.ID
+func (p *Client) GetID() uint32 {
+	return p.ClientSyncData.ID
 }
 
 // Write 写入要发送给客户端的消息
-func (p *Player) Write(data []byte) {
-	if p == nil || p.Ctx == nil {
+func (p *Client) Write(data []byte) {
+	if p == nil || p.Session == nil {
 		log.Printf("🔴 Cannot write message: player or context is nil")
 		return
 	}
 
-	err := p.Ctx.SendDatagram(data)
+	err := p.Session.SendDatagram(data)
 	if err != nil {
 		log.Printf("🔴 Failed to write message to player %d: %v", p.GetID(), err)
 	} else {

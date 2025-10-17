@@ -3,7 +3,7 @@ package constants
 import "sync/atomic"
 
 // 游戏的各个阶段
-type Stage uint8
+type Stage uint32
 
 const (
 	STAGE_InLobby   Stage = 0x20 // InLobby (房间.等待中): 房间刚被创建,所有人还在房间中，等待玩家加入，房主可以设置游戏。

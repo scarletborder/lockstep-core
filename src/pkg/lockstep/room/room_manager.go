@@ -1,22 +1,24 @@
 package room
 
 import (
+	"fmt"
 	"log"
 	"sync"
 )
 
 // RoomManager 管理所有游戏房间
 type RoomManager struct {
-	rooms    map[string]*Room
-	mutex    sync.RWMutex
-	stopChan chan string // 用于接收房间的停止信号
+	rooms map[uint32]*Room
+	mutex sync.RWMutex
+	// 传入roomid,用于接收房间的停止信号
+	stopChan chan uint32
 }
 
 // NewRoomManager 创建一个新的 RoomManager 实例
 func NewRoomManager() *RoomManager {
 	rm := &RoomManager{
-		rooms:    make(map[string]*Room),
-		stopChan: make(chan string, 100), // 缓冲通道
+		rooms:    make(map[uint32]*Room),
+		stopChan: make(chan uint32, 100), // 缓冲通道
 	}
 
 	// 启动监听房间停止信号的 goroutine
@@ -34,7 +36,7 @@ func (rm *RoomManager) listenStopSignals() {
 }
 
 // GetRoom 获取指定 ID 的房间
-func (rm *RoomManager) GetRoom(roomID string) (*Room, bool) {
+func (rm *RoomManager) GetRoom(roomID uint32) (*Room, bool) {
 	rm.mutex.RLock()
 	defer rm.mutex.RUnlock()
 
@@ -43,16 +45,20 @@ func (rm *RoomManager) GetRoom(roomID string) (*Room, bool) {
 }
 
 // CreateRoom 创建一个新房间
-func (rm *RoomManager) CreateRoom(roomID string) *Room {
+func (rm *RoomManager) CreateRoom(roomID uint32, name string, key string) *Room {
 	rm.mutex.Lock()
 	defer rm.mutex.Unlock()
-
 	// 如果房间已存在，直接返回
 	if room, exists := rm.rooms[roomID]; exists {
 		return room
 	}
-
-	room := NewRoom(roomID, rm.stopChan)
+	if name == "" {
+		name = fmt.Sprint("room_%v", roomID)
+	}
+	room := NewRoom(roomID, rm.stopChan, RoomOptions{
+		name: name,
+		key:  key,
+	})
 	rm.rooms[roomID] = room
 
 	// 启动房间的状态机循环
@@ -63,7 +69,7 @@ func (rm *RoomManager) CreateRoom(roomID string) *Room {
 }
 
 // GetOrCreateRoom 获取或创建一个房间
-func (rm *RoomManager) GetOrCreateRoom(roomID string) *Room {
+func (rm *RoomManager) GetOrCreateRoom(roomID uint32, name string, key string) *Room {
 	// 先尝试读锁获取
 	rm.mutex.RLock()
 	room, exists := rm.rooms[roomID]
@@ -74,11 +80,14 @@ func (rm *RoomManager) GetOrCreateRoom(roomID string) *Room {
 	}
 
 	// 不存在则创建
-	return rm.CreateRoom(roomID)
+	if name == "" {
+		name = fmt.Sprint("room_%v", roomID)
+	}
+	return rm.CreateRoom(roomID, name, key)
 }
 
 // RemoveRoom 删除一个房间
-func (rm *RoomManager) RemoveRoom(roomID string) {
+func (rm *RoomManager) RemoveRoom(roomID uint32) {
 	rm.mutex.Lock()
 	defer rm.mutex.Unlock()
 
@@ -91,11 +100,11 @@ func (rm *RoomManager) RemoveRoom(roomID string) {
 }
 
 // ListRooms 列出所有房间 ID
-func (rm *RoomManager) ListRooms() []string {
+func (rm *RoomManager) ListRooms() []uint32 {
 	rm.mutex.RLock()
 	defer rm.mutex.RUnlock()
 
-	roomIDs := make([]string, 0, len(rm.rooms))
+	roomIDs := make([]uint32, 0, len(rm.rooms))
 	for id := range rm.rooms {
 		roomIDs = append(roomIDs, id)
 	}
