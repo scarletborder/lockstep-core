@@ -16,9 +16,18 @@ type GeneralConfig struct {
 	Addr string
 }
 
+type LockstepConfig struct {
+	// 帧间隔
+	FrameInterval uint32
+
+	// 最大延迟帧数,接受迟到帧
+	MaxDelayFrames uint32
+}
+
 // ServerConfig 包含服务器的配置信息
 type ServerConfig struct {
 	GeneralConfig
+	LockstepConfig
 
 	// TLS 配置
 	TLSConfig *tls.Config
@@ -67,9 +76,22 @@ func NewDefaultConfig() (*ServerConfig, error) {
 
 	return &ServerConfig{
 		GeneralConfig:      generalCfg,
+		LockstepConfig:     LockstepConfig{FrameInterval: 66, MaxDelayFrames: 5}, // 默认值
 		TLSConfig:          tlsConfig,
 		CheckOriginEnabled: false, // 生产环境建议启用
 	}, nil
+}
+
+// WithLockstepConfig 设置帧同步配置
+// 由外部项目使用时调用
+func (c *ServerConfig) WithLockstepConfig(o LockstepConfig) *ServerConfig {
+	if o.FrameInterval != 0 {
+		c.FrameInterval = o.FrameInterval
+	}
+	if o.MaxDelayFrames != 0 {
+		c.MaxDelayFrames = o.MaxDelayFrames
+	}
+	return c
 }
 
 // WithAddr 设置服务器地址

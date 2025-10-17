@@ -43,7 +43,7 @@ gen:
 # Generate wire dependency injection code
 wire:
 	@echo "Generating wire dependency injection code..."
-	${WIRE_BIN} ./src/app
+	${WIRE_BIN} ./src/cmd
 	@echo "Wire generation complete."
 
 # build to binary

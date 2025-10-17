@@ -5,8 +5,8 @@ package main
 
 import (
 	"lockstep-core/src/config"
+	"lockstep-core/src/internal/server"
 	"lockstep-core/src/logic"
-	"lockstep-core/src/server"
 
 	"github.com/google/wire"
 )

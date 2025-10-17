@@ -14,7 +14,7 @@ require (
 	google.golang.org/protobuf v1.36.10
 )
 
-require github.com/BurntSushi/toml v1.5.0 // indirect
+require github.com/BurntSushi/toml v1.5.0
 
 require (
 	github.com/adrg/xdg v0.5.3
