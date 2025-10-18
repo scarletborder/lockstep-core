@@ -17,16 +17,24 @@ type ClientMessage struct {
 	Data []byte
 }
 
-var playerMessagePool = sync.Pool{
-	New: func() interface{} {
-		return new(ClientMessage)
-	},
+type ClientMessagePool struct {
+	pool sync.Pool
+}
+
+func NewClientMessagePool() *ClientMessagePool {
+	return &ClientMessagePool{
+		pool: sync.Pool{
+			New: func() interface{} {
+				return new(ClientMessage)
+			},
+		},
+	}
 }
 
 // GetPlayerMessage
 // 从对象池获取并赋值一个 PlayerMessage
-func GetPlayerMessage(client *Client, data []byte) *ClientMessage {
-	msg := playerMessagePool.Get().(*ClientMessage)
+func (p *ClientMessagePool) GetPlayerMessage(client *Client, data []byte) *ClientMessage {
+	msg := p.pool.Get().(*ClientMessage)
 	msg.Client = client
 	msg.Data = data
 	return msg
@@ -34,10 +42,10 @@ func GetPlayerMessage(client *Client, data []byte) *ClientMessage {
 
 // ReleasePlayerMessage
 // 消费结束某消息后将 PlayerMessage 释放回对象池
-func ReleasePlayerMessage(msg *ClientMessage) {
+func (p *ClientMessagePool) ReleasePlayerMessage(msg *ClientMessage) {
 	msg.Client = nil
 	msg.Data = nil
-	playerMessagePool.Put(msg)
+	p.pool.Put(msg)
 }
 
 // Client 代表一个客户端
@@ -48,6 +56,8 @@ type Client struct {
 	// 持有对 "发送消息到服务器的通道" 的引用
 	SendChan chan<- *ClientMessage
 
+	// 共享data池以节省开销
+	*ClientMessagePool
 	// lockstep
 	lockstep_sync.ClientSyncData
 
@@ -64,11 +74,12 @@ type Client struct {
 // NewClient 创建一个新的玩家实例
 func NewClient(uid uint32, sess session.ISession, sendChan chan<- *ClientMessage) *Client {
 	return &Client{
-		Session:        sess,
-		IsReady:        false,
-		IsLoaded:       false,
-		SendChan:       sendChan,
-		ClientSyncData: *lockstep_sync.NewClientSyncData(uid),
+		Session:           sess,
+		IsReady:           false,
+		IsLoaded:          false,
+		SendChan:          sendChan,
+		ClientMessagePool: NewClientMessagePool(),
+		ClientSyncData:    *lockstep_sync.NewClientSyncData(uid),
 	}
 }
 

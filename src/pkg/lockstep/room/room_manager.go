@@ -3,6 +3,7 @@ package room
 import (
 	"fmt"
 	"lockstep-core/src/config"
+	"lockstep-core/src/utils"
 	"log"
 	"sync"
 )
@@ -11,19 +12,24 @@ import (
 type RoomManager struct {
 	rooms map[uint32]*Room
 	mutex sync.RWMutex
+
+	utils.SafeIDAllocator
 	// 传入roomid,用于接收房间的停止信号
 	stopChan chan uint32
 
 	// cfg
 	config.LockstepConfig
+	config.ServerConfig
 }
 
 // NewRoomManager 创建一个新的 RoomManager 实例
-func NewRoomManager(cfg *config.ServerConfig) *RoomManager {
+func NewRoomManager(cfg *config.RuntimeConfig) *RoomManager {
 	rm := &RoomManager{
-		rooms:          make(map[uint32]*Room),
-		stopChan:       make(chan uint32, 100), // 缓冲通道
-		LockstepConfig: cfg.LockstepConfig,
+		rooms:           make(map[uint32]*Room),
+		stopChan:        make(chan uint32, 100), // 缓冲通道
+		LockstepConfig:  cfg.LockstepConfig,
+		ServerConfig:    cfg.ServerConfig,
+		SafeIDAllocator: *utils.NewSafeIDAllocator(utils.RoundUpTo64(uint32(*cfg.MaxRoomNumber))),
 	}
 
 	// 启动监听房间停止信号的 goroutine
@@ -40,6 +46,8 @@ func (rm *RoomManager) listenStopSignals() {
 	}
 }
 
+// 获取一个可用的roomID
+
 // GetRoom 获取指定 ID 的房间
 func (rm *RoomManager) GetRoom(roomID uint32) (*Room, bool) {
 	rm.mutex.RLock()
@@ -50,12 +58,21 @@ func (rm *RoomManager) GetRoom(roomID uint32) (*Room, bool) {
 }
 
 // CreateRoom 创建一个新房间
-func (rm *RoomManager) CreateRoom(roomID uint32, name string, key string) *Room {
+func (rm *RoomManager) CreateRoom(name string, key string) (*Room, error) {
+	if len(rm.rooms) >= int(*rm.ServerConfig.MaxRoomNumber) {
+		return nil, fmt.Errorf("maximum number of rooms reached")
+	}
+
 	rm.mutex.Lock()
 	defer rm.mutex.Unlock()
+	roomID, err := rm.SafeIDAllocator.Allocate()
+	if err != nil {
+		log.Printf("❌ Failed to allocate room ID: %v", err)
+		return nil, err
+	}
 	// 如果房间已存在，直接返回
-	if room, exists := rm.rooms[roomID]; exists {
-		return room
+	if _, exists := rm.rooms[roomID]; exists {
+		return nil, fmt.Errorf("room with ID %d already exists", roomID)
 	}
 	if name == "" {
 		name = fmt.Sprint("room_%v", roomID)
@@ -71,29 +88,12 @@ func (rm *RoomManager) CreateRoom(roomID uint32, name string, key string) *Room 
 	go room.Run()
 	log.Printf("🟢 Room %s created and started", roomID)
 
-	return room
-}
-
-// GetOrCreateRoom 获取或创建一个房间
-func (rm *RoomManager) GetOrCreateRoom(roomID uint32, name string, key string) *Room {
-	// 先尝试读锁获取
-	rm.mutex.RLock()
-	room, exists := rm.rooms[roomID]
-	rm.mutex.RUnlock()
-
-	if exists {
-		return room
-	}
-
-	// 不存在则创建
-	if name == "" {
-		name = fmt.Sprint("room_%v", roomID)
-	}
-	return rm.CreateRoom(roomID, name, key)
+	return room, nil
 }
 
 // RemoveRoom 删除一个房间
 func (rm *RoomManager) RemoveRoom(roomID uint32) {
+	rm.SafeIDAllocator.Free(roomID)
 	rm.mutex.Lock()
 	defer rm.mutex.Unlock()
 

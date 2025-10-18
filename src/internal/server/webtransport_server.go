@@ -12,20 +12,20 @@ import (
 
 // WebTransportServer 封装 WebTransport 服务器
 type WebTransportServer struct {
-	config     *config.ServerConfig
+	config     *config.RuntimeConfig
 	wtServer   *webtransport.Server
 	httpServer *http.Server
 	mux        *http.ServeMux
 }
 
 // NewWebTransportServer 创建一个新的 WebTransportServer
-func NewWebTransportServer(cfg *config.ServerConfig) *WebTransportServer {
+func NewWebTransportServer(cfg *config.RuntimeConfig) *WebTransportServer {
 	mux := http.NewServeMux()
 
 	wtServer := &webtransport.Server{
 		H3: http3.Server{
 			TLSConfig: cfg.TLSConfig,
-			Addr:      cfg.Addr,
+			Addr:      *cfg.Addr,
 			Handler:   mux,
 		},
 		CheckOrigin: func(r *http.Request) bool {
@@ -41,7 +41,7 @@ func NewWebTransportServer(cfg *config.ServerConfig) *WebTransportServer {
 
 	// 创建传统 HTTP/1.1 服务器（用于普通 HTTP 请求）
 	httpServer := &http.Server{
-		Addr:      cfg.Addr,
+		Addr:      *cfg.Addr,
 		Handler:   mux,
 		TLSConfig: cfg.TLSConfig,
 	}

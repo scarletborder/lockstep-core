@@ -8,13 +8,13 @@ type PlayerMap struct {
 }
 
 // Store 存储玩家
-func (pm *PlayerMap) Store(key int, value *Client) {
-	pm.m.Store(key, value)
+func (pm *PlayerMap) Store(uid uint32, value *Client) {
+	pm.m.Store(uid, value)
 }
 
 // Load 加载玩家
-func (pm *PlayerMap) Load(key int) (*Client, bool) {
-	v, ok := pm.m.Load(key)
+func (pm *PlayerMap) Load(uid uint32) (*Client, bool) {
+	v, ok := pm.m.Load(uid)
 	if !ok {
 		return nil, false
 	}
@@ -23,14 +23,14 @@ func (pm *PlayerMap) Load(key int) (*Client, bool) {
 }
 
 // Delete 删除玩家
-func (pm *PlayerMap) Delete(key int) {
-	pm.m.Delete(key)
+func (pm *PlayerMap) Delete(uid uint32) {
+	pm.m.Delete(uid)
 }
 
 // Range 遍历所有玩家
-func (pm *PlayerMap) Range(f func(key int, value *Client) bool) {
+func (pm *PlayerMap) Range(f func(key uint32, value *Client) bool) {
 	pm.m.Range(func(k, v interface{}) bool {
-		ki, ok1 := k.(int)
+		ki, ok1 := k.(uint32)
 		vp, ok2 := v.(*Client)
 		if !ok1 || !ok2 {
 			return true

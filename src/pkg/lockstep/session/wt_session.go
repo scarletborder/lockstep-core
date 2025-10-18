@@ -63,3 +63,10 @@ func (ws *WtSession) ReceiveDatagram() ([]byte, error) {
 func (ws *WtSession) GetRemoteAddr() net.Addr {
 	return ws.session.RemoteAddr()
 }
+
+func (ws *WtSession) CloseWithError(code uint32, reason string) error {
+	if !ws.IsConnected() {
+		return fmt.Errorf("session is nil")
+	}
+	return ws.session.CloseWithError(webtransport.SessionErrorCode(code), reason)
+}

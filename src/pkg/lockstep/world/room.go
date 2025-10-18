@@ -12,10 +12,10 @@ type IRoomContext interface {
 
 	// SendTo 向指定的玩家发送消息
 	// 游戏逻辑层通过 IPlayer 接口来指定目标
-	SendTo(player IPlayer, data []byte)
+	SendTo(uid uint32, data []byte)
 
 	// SendToMultiple 向一组玩家发送消息，比循环调用 SendTo 更高效
-	SendToMultiple(players []IPlayer, data []byte)
+	SendToMultiple(uids []uint32, data []byte)
 
 	// # 状态查询
 
@@ -24,10 +24,7 @@ type IRoomContext interface {
 
 	// GetAllPlayers 获取当前在房间内的所有玩家列表
 	// 返回 IPlayer 接口切片，只暴露核心信息（如UID）
-	GetAllPlayers() []IPlayer
-
-	// GetPlayerByUID 根据UID查找玩家
-	GetPlayerByUID(uid uint32) (IPlayer, bool)
+	GetAllPlayers() []uint32
 
 	// GetCurrentFrame 获取当前 lockstep 的帧号
 	// 这是与 SyncData 交互的最关键部分
@@ -37,7 +34,7 @@ type IRoomContext interface {
 
 	// KickPlayer 请求核心框架踢掉一个玩家
 	// 游戏逻辑判断“为什么”踢，核心框架执行“如何”踢（关闭连接、清理资源等）
-	KickPlayer(player IPlayer, reason string)
+	KickPlayer(uid uint32, reason string)
 
 	// DestroyRoom 请求核心框架销毁当前房间
 	// 例如，游戏逻辑在 Tick() 中判断出胜负已分，可以调用此方法来结束游戏

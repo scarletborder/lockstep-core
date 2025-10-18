@@ -4,7 +4,8 @@ import "crypto/tls"
 
 type ServerConfig struct {
 	// 服务器监听地址
-	Addr *string `toml:"addr"`
+	Addr          *string `toml:"addr"`
+	MaxRoomNumber *uint32 `toml:"max_room_number"`
 }
 
 const DefaultAddr = "127.0.0.1:4433"

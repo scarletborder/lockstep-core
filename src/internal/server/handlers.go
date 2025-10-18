@@ -4,43 +4,49 @@ import (
 	"crypto/sha256"
 	"encoding/json"
 	"fmt"
-	"lockstep-core/src/logic"
+	"lockstep-core/src/pkg/lockstep/client"
+	"lockstep-core/src/pkg/lockstep/room"
+	"lockstep-core/src/pkg/lockstep/session"
 	customTLS "lockstep-core/src/utils/tls"
 	"log"
 	"net/http"
+	"strconv"
 
 	"github.com/google/uuid"
 )
 
 // HTTPHandlers 包含所有 HTTP 请求处理器
 type HTTPHandlers struct {
-	roomManager    logic.RoomManagerInterface
-	sessionHandler logic.PlayerSessionHandler
-	wtServer       *WebTransportServer
+	roomManager room.IRoomManager
+	wtServer    *WebTransportServer
 }
 
 // NewHTTPHandlers 创建一个新的 HTTPHandlers 实例
 func NewHTTPHandlers(
-	roomManager logic.RoomManagerInterface,
-	sessionHandler logic.PlayerSessionHandler,
+	roomManager room.IRoomManager,
 	wtServer *WebTransportServer,
 ) *HTTPHandlers {
 	return &HTTPHandlers{
-		roomManager:    roomManager,
-		sessionHandler: sessionHandler,
-		wtServer:       wtServer,
+		roomManager: roomManager,
+		wtServer:    wtServer,
 	}
 }
 
 // ListRoomsHandler 处理获取房间列表的请求 (GET /rooms)
 func (h *HTTPHandlers) ListRoomsHandler(w http.ResponseWriter, r *http.Request) {
 	roomIDs := h.roomManager.ListRooms()
+	resp := struct {
+		Rooms []uint32 `json:"rooms"`
+	}{
+		Rooms: roomIDs,
+	}
 
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 	w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
 	w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
-	if err := json.NewEncoder(w).Encode(roomIDs); err != nil {
+	w.WriteHeader(http.StatusOK)
+	if err := json.NewEncoder(w).Encode(resp); err != nil {
 		http.Error(w, "Failed to encode response", http.StatusInternalServerError)
 		return
 	}
@@ -49,22 +55,35 @@ func (h *HTTPHandlers) ListRoomsHandler(w http.ResponseWriter, r *http.Request) 
 // CreateRoomHandler 处理创建房间的请求 (POST /rooms)
 func (h *HTTPHandlers) CreateRoomHandler(w http.ResponseWriter, r *http.Request) {
 	var reqBody struct {
-		RoomID string `json:"room_id"`
+		Name string `json:"name"`
+		Key  string `json:"key"`
 	}
 
-	if err := json.NewDecoder(r.Body).Decode(&reqBody); err != nil || reqBody.RoomID == "" {
-		http.Error(w, "Invalid request body", http.StatusBadRequest)
+	room, err := h.roomManager.CreateRoom(reqBody.Name, reqBody.Key)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		resp := struct {
+			Error string `json:"error"`
+		}{
+			Error: fmt.Sprintf("Failed to create room: %v", err),
+		}
+		json.NewEncoder(w).Encode(resp)
 		return
 	}
 
-	h.roomManager.GetOrCreateRoom(reqBody.RoomID)
-	log.Printf("Room created: %s", reqBody.RoomID)
+	log.Printf("Room created: %s", room.ID)
+
+	resp := struct {
+		RoomID uint32 `json:"room_id"`
+	}{
+		RoomID: room.ID,
+	}
 
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 	w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
 	w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
 	w.WriteHeader(http.StatusCreated)
-	fmt.Fprintf(w, "Room %s created successfully", reqBody.RoomID)
+	json.NewEncoder(w).Encode(resp)
 }
 
 // RoomsHandler 统一处理房间相关请求
@@ -86,7 +105,7 @@ func (h *HTTPHandlers) RoomsHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// JoinRoomHandler 处理加入房间的请求 (WebTransport /join?roomid={roomID}&key={value})
+// JoinRoomHandler 处理加入房间的请求 (WebTransport /join?roomid={roomID}&name={name}&&key={value})
 func (h *HTTPHandlers) JoinRoomHandler(w http.ResponseWriter, r *http.Request) {
 	log.Printf("JoinRoomHandler called with path: %s", r.URL.Path)
 	queryParams := r.URL.Query()
@@ -95,13 +114,62 @@ func (h *HTTPHandlers) JoinRoomHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Missing roomID parameter", http.StatusBadRequest)
 		return
 	}
+
+	// str to uint32
+	roomIDNum, err := strconv.ParseUint(roomID, 10, 32)
+	if err != nil {
+		http.Error(w, "Invalid roomID parameter", http.StatusBadRequest)
+		return
+	}
+	if (roomIDNum > 0xFFFFFFFF) || (roomIDNum == 0) {
+		http.Error(w, "roomID out of range", http.StatusBadRequest)
+		return
+	}
+	//other params
+	name := queryParams.Get("name")
+	if name == "" {
+		name = fmt.Sprintf("room_%d", roomIDNum)
+	}
 	key := queryParams.Get("key") // 可选密钥参数
 	_ = key                       // TODO:目前未使用密钥
 
-	room := h.roomManager.GetOrCreateRoom(roomID)
+	room, ok := h.roomManager.GetRoom(uint32(roomIDNum))
+	if !ok {
+		w.WriteHeader(http.StatusNotFound)
+		resp := struct {
+			Error string `json:"error"`
+		}{
+			Error: fmt.Sprintf("Room %s not found", roomID),
+		}
+		json.NewEncoder(w).Encode(resp)
+		return
+	}
+
+	if room.IsRoomFull() {
+		w.WriteHeader(http.StatusForbidden)
+		resp := struct {
+			Error string `json:"error"`
+		}{
+			Error: fmt.Sprintf("Room %s is full", roomID),
+		}
+		json.NewEncoder(w).Encode(resp)
+		return
+	}
+
+	nextUserId, err := room.GetNextUserID()
+	if err != nil {
+		resp := struct {
+			Error string `json:"error"`
+		}{
+			Error: fmt.Sprintf("Failed to get next user ID: %v", err),
+		}
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(resp)
+		return
+	}
 
 	// 升级连接到 WebTransport
-	session, err := h.wtServer.UpgradeToWebTransport(w, r)
+	sess, err := h.wtServer.UpgradeToWebTransport(w, r)
 	if err != nil {
 		http.Error(w, "Failed to upgrade to WebTransport", http.StatusInternalServerError)
 		return
@@ -111,22 +179,26 @@ func (h *HTTPHandlers) JoinRoomHandler(w http.ResponseWriter, r *http.Request) {
 	playerIDNum := int(uuid.New().ID()) // 使用 UUID 的数字部分
 
 	// 创建玩家上下文
-	playerCtx := logic.NewPlayerContext(session, playerIDNum)
+	session_impl := session.NewWtSession(sess)
+
+	client := client.NewClient(nextUserId, session_impl, room.GetIncomingMessagesChan())
+
+	// playerCtx := logic.NewPlayerContext(session, playerIDNum)
 
 	// 创建玩家实例
-	player := logic.NewPlayer(playerCtx, room.GetIncomingMessagesChan())
-
+	// player := logic.NewPlayer(playerCtx, room.GetIncomingMessagesChan())
+	//
 	log.Printf("Player %d joining room %s", playerIDNum, roomID)
 
 	// TODO: 发送加入成功消息给客户端
 	// joinMsg := []byte(fmt.Sprintf("Player %d joined room %s", playerIDNum, room.ID))
 
 	// 将玩家添加到房间（这会发送到 register channel）
-	room.AddPlayer(player)
+	room.RegisterPlayer(client)
 
 	// 在独立的 goroutine 中处理此玩家的会话
 	// 这会阻塞直到连接关闭
-	go h.sessionHandler.HandleSession(room, player)
+	go room.StartServeClient(client)
 }
 
 // HealthCheckHandler 处理健康检查和根路径请求 (GET /)

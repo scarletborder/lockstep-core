@@ -112,3 +112,10 @@ func (ws *WebsocketSession) GetRemoteAddr() net.Addr {
 	}
 	return ws.conn.RemoteAddr()
 }
+
+func (ws *WebsocketSession) CloseWithError(code uint32, reason string) error {
+	if !ws.IsConnected() {
+		return fmt.Errorf("session is nil")
+	}
+	return ws.conn.CloseHandler()(int(code), reason)
+}
