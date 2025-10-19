@@ -4,16 +4,22 @@ import (
 	"crypto/subtle"
 	"lockstep-core/src/config"
 	"lockstep-core/src/constants"
+	"lockstep-core/src/messages"
 
 	"lockstep-core/src/pkg/lockstep/client"
 	lockstep_sync "lockstep-core/src/pkg/lockstep/sync"
+	"lockstep-core/src/pkg/lockstep/world"
 	"log"
 	"runtime/debug"
 	"sync"
 	"time"
+
+	"google.golang.org/protobuf/proto"
 )
 
 type DataChannel struct {
+	MaxClientPerRoom int
+
 	// 客户端session用于发送注册信息
 	register chan *client.Client
 	// 客户端session用于发送解除注册信息
@@ -25,9 +31,9 @@ type DataChannel struct {
 
 func (dc *DataChannel) Reset() {
 	// 重置通道（关闭旧通道，创建新通道）
-	dc.register = make(chan *client.Client, 8)
-	dc.unregister = make(chan *client.Client, 8)
-	dc.incomingMessages = make(chan *client.ClientMessage, 128)
+	dc.register = make(chan *client.Client, dc.MaxClientPerRoom)
+	dc.unregister = make(chan *client.Client, dc.MaxClientPerRoom)
+	dc.incomingMessages = make(chan *client.ClientMessage, 16*dc.MaxClientPerRoom)
 	// dc.ingameOperations = make(chan *messages.InGameOperation, 128)
 }
 
@@ -38,7 +44,8 @@ type Room struct {
 	// 安全
 	key string // 房间密钥
 
-	// Logic   *GameLogic // TODO: 后续整合游戏逻辑
+	// 游戏逻辑世界
+	Game world.IGameWorld
 
 	// clients
 	ClientsContainer
@@ -55,7 +62,7 @@ type Room struct {
 	config.LockstepConfig
 
 	// 房间Life Cycle生命周期管理
-	GameStage constants.AtomStage // 房间当前状态
+	RoomStage constants.AtomStage // 房间当前状态
 
 	// 是否已经摧毁本房间
 	destroyOnce sync.Once
@@ -77,11 +84,10 @@ func NewRoom(id uint32, stopChan chan uint32, o RoomOptions) *Room {
 	// logic := NewGameLogic(gameOperationChan)
 
 	var channel = DataChannel{
-		register:         make(chan *client.Client, *o.LockstepConfig.MaxClientsPerRoom),
-		unregister:       make(chan *client.Client, *o.LockstepConfig.MaxClientsPerRoom),
-		incomingMessages: make(chan *client.ClientMessage, 16*(*o.LockstepConfig.MaxClientsPerRoom)),
+		MaxClientPerRoom: int(*o.MaxClientsPerRoom),
 		// ingameOperations: gameOperationChan,
 	}
+	channel.Reset()
 
 	return &Room{
 		ID:   id,
@@ -96,7 +102,7 @@ func NewRoom(id uint32, stopChan chan uint32, o RoomOptions) *Room {
 		DataChannel: channel,
 		// ingameOperations: gameOperationChan,
 
-		GameStage:      *constants.NewAtomStage(constants.STAGE_InLobby),
+		RoomStage:      *constants.NewAtomStage(constants.STAGE_InLobby),
 		LastActiveTime: time.Now(),
 		StopChan:       stopChan,
 		destroyOnce:    sync.Once{},
@@ -119,7 +125,7 @@ func (room *Room) Reset() {
 
 	// room 本身 reset
 	room.LastActiveTime = time.Now()              // 重置最后活动时间
-	room.GameStage.Store(constants.STAGE_InLobby) // 重置游戏状态为大厅
+	room.RoomStage.Store(constants.STAGE_InLobby) // 重置游戏状态为大厅
 	// 清空共享数据,ingameOperations
 	room.DataChannel.Reset()
 }
@@ -135,14 +141,14 @@ func (room *Room) Destroy() {
 	}()
 
 	room.destroyOnce.Do(func() {
-		log.Printf("🔥 Destroying room %s (stage: %d, players: %d, idle time: %v)",
-			room.ID, room.GameStage.Load(), room.GetPlayerCount(), time.Since(room.LastActiveTime))
+		log.Printf("🔥 Destroying room %d (stage: %d, players: %d, idle time: %v)",
+			room.ID, room.RoomStage.Load(), room.GetPlayerCount(), time.Since(room.LastActiveTime))
 
 		// TODO: 发送房间关闭消息
 		// room.RoomCtx.BroadcastMessage(...)
 
 		// 通知房间关闭
-		room.GameStage.Store(constants.STAGE_CLOSED)
+		room.RoomStage.Store(constants.STAGE_CLOSED)
 
 		// 停止定时器
 		if room.GameTicker != nil {
@@ -175,14 +181,14 @@ func (room *Room) HasKey() bool {
 // UpdateActiveTime 更新房间的最后活跃时间
 func (room *Room) UpdateActiveTime() {
 	room.LastActiveTime = time.Now()
-	log.Printf("🕒 Updated active time for room %s", room.ID)
+	log.Printf("🕒 Updated active time for room %d", room.ID)
 }
 
 // RegisterPlayer 添加一个玩家到房间（发送注册信号）
 func (room *Room) RegisterPlayer(player *client.Client) {
 	select {
 	case room.register <- player:
-		log.Printf("🟢 Player %d registered to room %s", player.GetID(), room.ID)
+		log.Printf("🟢 Player %d registered to room %d", player.GetID(), room.ID)
 	default:
 		log.Printf("🔴 Failed to register player %d - channel full", player.GetID())
 	}
@@ -192,7 +198,7 @@ func (room *Room) RegisterPlayer(player *client.Client) {
 func (room *Room) UnregisterPlayer(player *client.Client) {
 	select {
 	case room.unregister <- player:
-		log.Printf("🟡 Player %d unregistered from room %s", player.GetID(), room.ID)
+		log.Printf("🟡 Player %d unregistered from room %d", player.GetID(), room.ID)
 	default:
 		log.Printf("🔴 Failed to unregister player %d - channel full", player.GetID())
 	}
@@ -278,16 +284,25 @@ func (room *Room) StartServeClient(client *client.Client) {
 	log.Printf("🟡 Starting message loop for player %d", client.GetID())
 	for {
 		// 使用 WebTransport 接收 datagram
-		data, err := client.Session.ReceiveDatagram()
+		rawBytes, err := client.Session.ReceiveDatagram()
 		if err != nil {
 			log.Printf("🔴 ReceiveDatagram error for player %d: %v", client.GetID(), err)
 			return
 		}
 
-		log.Printf("🟡 Received datagram from player %d, length: %d", client.GetID(), len(data))
+		log.Printf("🟡 Received datagram from player %d, length: %d", client.GetID(), len(rawBytes))
+
+		sessionRequest := &messages.SessionRequest{}
+
+		// 调用 proto.Unmarshal 进行反序列化
+		err = proto.Unmarshal(rawBytes, sessionRequest)
+		if err != nil {
+			// 如果解析失败（例如数据损坏或格式错误）
+			log.Printf("🔴 Failed to unmarshal SessionRequest: %v", err)
+		}
 
 		// 发送到消息管道
-		msg := client.GetPlayerMessage(client, data)
+		msg := client.GetPlayerMessage(client, sessionRequest)
 		room.incomingMessages <- msg
 	}
 }

@@ -2,7 +2,8 @@ package world
 
 // IRoomContext 定义了房间上下文接口。
 //
-// 游戏逻辑需要一种方式来向客户端发送数据，但它不应该直接接触网络会话 (ISession)。roomContext 提供了这种能力。
+// 游戏逻辑需要一种方式来向客户端发送数据，但它不应该直接接触网络会话 (ISession)。
+// roomContext 提供了这种能力。
 type IRoomContext interface {
 	// # 通信服务
 

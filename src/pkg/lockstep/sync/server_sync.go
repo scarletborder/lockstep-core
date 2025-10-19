@@ -6,12 +6,15 @@ import (
 )
 
 type ServerSyncData struct {
-	//data
+	// info
 
 	// 发送给客户端渲染的下一帧 ID
 	NextFrameID *atomic.Uint32
 	// 某帧下一次操作的序号 (FrameID -> OperationID)
 	OperationIDMaps sync.Map // map[uint32]uint32
+
+	// stored data
+
 }
 
 func NewServerSyncData() *ServerSyncData {

@@ -12,7 +12,7 @@ import (
 func (room *Room) Run() {
 	defer func() {
 		if r := recover(); r != nil {
-			log.Printf("运行房间 %s 捕获到 Panic: %v\n", room.ID, r)
+			log.Printf("运行房间 %v 捕获到 Panic: %v\n", room.ID, r)
 			log.Printf("堆栈信息:\n%s", string(debug.Stack()))
 			log.Println("程序已从 panic 中恢复，将继续运行。")
 		}
@@ -21,7 +21,7 @@ func (room *Room) Run() {
 	}()
 
 	// 初始房间状态，大厅中等待玩家
-	room.GameStage.Store(constants.STAGE_InLobby)
+	room.RoomStage.Store(constants.STAGE_InLobby)
 
 	/* 状态机主循环
 	根据用户输入和房间的当前状态来进行分支
@@ -31,22 +31,25 @@ func (room *Room) Run() {
 		var tickerChan (<-chan time.Time)
 
 		// 如果不是 InGame 状态，则不需要游戏逻辑定时器
-		if room.GameStage.EqualTo(constants.STAGE_InGame) && room.GameTicker != nil {
+		if room.RoomStage.EqualTo(constants.STAGE_InGame) && room.GameTicker != nil {
 			// 只有在 InGame 状态下才有 GameTicker
 			tickerChan = room.GameTicker.C
 		}
 
 		// 检查是否应该关闭房间
-		if room.GameStage.EqualTo(constants.STAGE_CLOSED) {
-			log.Printf("🔴 Room %s is closing, exiting main loop", room.ID)
+		if room.RoomStage.EqualTo(constants.STAGE_CLOSED) {
+			log.Printf("🔴 Room %v is closing, exiting main loop", room.ID)
 			return
 		}
 
 		select {
-		// 1. 处理通用的客户端管理事件
+		// 处理通用的客户端来源事件
+
+		// 1.1 客户端加入消息来自于 register channel
 		case player := <-room.register:
 			room.handleRegister(player)
 
+		// 1.2 客户端离开消息来自于 unregister channel
 		case player := <-room.unregister:
 			room.handleUnregister(player)
 
@@ -69,7 +72,7 @@ func (room *Room) handleRegister(player *client.Client) {
 	room.UpdateActiveTime()
 
 	// 在 Lobby 状态下才允许新玩家加入
-	if room.GameStage.EqualTo(constants.STAGE_InLobby) {
+	if room.RoomStage.EqualTo(constants.STAGE_InLobby) {
 		log.Printf("🔵 Room is in lobby state, adding player %d", player.GetID())
 		// 向 context 中注册用户
 		room.ClientsContainer.AddUser(player)
@@ -115,8 +118,7 @@ func (room *Room) handlePlayerMessage(msg *client.ClientMessage) {
 	// 更新房间活跃时间 - 任何玩家消息都表示房间是活跃的
 	room.UpdateActiveTime()
 
-	// TODO: 解析 protobuf 消息并根据类型分发
-	log.Printf("🟡 Received message from player %d, length: %d", msg.Client.GetID(), len(msg.Data))
+	// TODO: 解析 用户消息并进行分支处理
 }
 
 // runGameTick 定时器触发的游戏逻辑帧
@@ -124,7 +126,7 @@ func (room *Room) handlePlayerMessage(msg *client.ClientMessage) {
 func (room *Room) stepGameTick() {
 	// 仍然没有玩家在线，即全部离开或断开，那么等待，跳过本次
 	if room.ClientsContainer.GetPlayerCount() == 0 {
-		log.Printf("⚠️ No players online in room %s, skipping game tick", room.ID)
+		log.Printf("⚠️ No players online in room %v, skipping game tick", room.ID)
 		return
 	}
 	// 本次frame step行为将有效，更新最后活动时间

@@ -4,6 +4,7 @@ import (
 	"flag"
 	"fmt"
 	"lockstep-core/src/constants"
+	"lockstep-core/src/internal/di"
 	"lockstep-core/src/utils"
 	"lockstep-core/src/utils/tls"
 	"log"
@@ -32,7 +33,7 @@ func main() {
 	}
 
 	// 使用 Wire 生成的初始化函数
-	handlers, err := InitializeApplication()
+	handlers, err := di.InitializeApplication()
 	if err != nil {
 		log.Fatalf("Failed to initialize application: %v", err)
 	}

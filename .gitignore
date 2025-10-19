@@ -29,7 +29,6 @@ go.work.sum
 
 out/
 
-*.pb.go
 
 # Editor/IDE
 # .idea/

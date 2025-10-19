@@ -41,7 +41,7 @@ func NewRoomManager(cfg *config.RuntimeConfig) *RoomManager {
 // listenStopSignals 监听房间的停止信号
 func (rm *RoomManager) listenStopSignals() {
 	for roomID := range rm.stopChan {
-		log.Printf("🔥 Received stop signal for room %s", roomID)
+		log.Printf("🔥 Received stop signal for room %d", roomID)
 		rm.RemoveRoom(roomID)
 	}
 }
@@ -75,7 +75,7 @@ func (rm *RoomManager) CreateRoom(name string, key string) (*Room, error) {
 		return nil, fmt.Errorf("room with ID %d already exists", roomID)
 	}
 	if name == "" {
-		name = fmt.Sprint("room_%v", roomID)
+		name = fmt.Sprintf("room_%d", roomID)
 	}
 	room := NewRoom(roomID, rm.stopChan, RoomOptions{
 		name:           name,
@@ -86,7 +86,7 @@ func (rm *RoomManager) CreateRoom(name string, key string) (*Room, error) {
 
 	// 启动房间的状态机循环
 	go room.Run()
-	log.Printf("🟢 Room %s created and started", roomID)
+	log.Printf("🟢 Room %d created and started", roomID)
 
 	return room, nil
 }
@@ -98,7 +98,7 @@ func (rm *RoomManager) RemoveRoom(roomID uint32) {
 	defer rm.mutex.Unlock()
 
 	if room, exists := rm.rooms[roomID]; exists {
-		log.Printf("🔥 Removing room %s from manager", roomID)
+		log.Printf("🔥 Removing room %d from manager", roomID)
 		delete(rm.rooms, roomID)
 		// 房间已经在 Destroy 中关闭了所有连接
 		_ = room

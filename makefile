@@ -4,7 +4,7 @@
 PROTO_DIR=proto/
 
 # Output paths
-PROTO_BACKEND_PATH=src/messages/pb/
+PROTO_BACKEND_PATH=src/messages/
 PROTO_TYPESCRIPT_PATH=example/ts-app/src/types/pb/
 OUTPUT_BIN_PATH=out
 
@@ -18,7 +18,8 @@ all: gen wire build
 # Generate all proto files
 gen:
 	@echo "Generating Go and TypeScript code from .proto files..."
-
+	rm -rf $(PROTO_BACKEND_PATH)/*
+	rm -rf $(PROTO_TYPESCRIPT_PATH)/*
 	# make sure output directories exist
 	mkdir -p $(PROTO_BACKEND_PATH)
 	mkdir -p $(PROTO_TYPESCRIPT_PATH)
@@ -26,7 +27,10 @@ gen:
 	# --- Generate Go code ---
 	# --proto_path specifies the search path for .proto files
 	# --go_out specifies the output directory for Go code
-	protoc --proto_path=$(PROTO_DIR) --go_out=$(PROTO_BACKEND_PATH) $(PROTO_DIR)/*.proto
+	protoc --proto_path=$(PROTO_DIR) \
+		--go_out=$(PROTO_BACKEND_PATH) \
+		--grpc-gateway_out=$(PROTO_BACKEND_PATH) \
+		$(PROTO_DIR)/*.proto
 	
 	
 	# --- Generate TypeScript code ---

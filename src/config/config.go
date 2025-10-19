@@ -37,16 +37,7 @@ func NewDefaultConfig(dataDir *string) (*RuntimeConfig, error) {
 	}
 
 	// 从地址中提取主机部分用于证书生成
-	host := *generalCfg.Addr
-	// 如果地址包含端口，去掉端口部分
-	if colonIndex := len(host) - 1; colonIndex > 0 {
-		for i := len(host) - 1; i >= 0; i-- {
-			if host[i] == ':' {
-				host = host[:i]
-				break
-			}
-		}
-	}
+	host := *generalCfg.Host
 
 	// tls config
 	tlsDir := filepath.Join(*dataDir, constants.TLS_DIR)

@@ -1,0 +1,160 @@
+syntax = "proto3";
+
+// 定义包名，这会影响 Go 和其他语言的命名空间
+package messages;
+
+// 告诉 Go 生成器将文件放在当前目录(./)，并且包名是 messages
+option go_package = "./;messages";
+
+message SessionResponse {
+  oneof payload {
+    ResponseJoin join = 1;
+    ResponseRoomInfoChanged room_info_changed = 2;
+    ResponseStageChange stage_change = 3;
+    ResponseRoomClosed room_closed = 4;
+    ResponseReadyCountUpdate ready_count_update = 5;
+    ResponseLoadedCountUpdate loaded_count_update = 6;
+    ResponseInGameFrames in_game_frames = 7;
+    ResponseEndGame end_game = 8;
+    ResponseOther other = 9;
+  }
+}
+
+message RoomInfo {
+  string RoomKey = 2;
+  int32 MaxPlayers = 4;
+  int32 CurrentPlayers = 5;
+  repeated uint32 PlayerIDs = 6;
+  // 附加数据
+  optional bytes data = 7;
+}
+
+message ResponseJoinSuccess {
+  uint32 RoomID = 1;
+  RoomInfo RoomInfo = 4;
+  uint32 MyID = 2;
+  string ReconnectToken = 3;
+}
+
+message ResponseJoinFail {
+  string Message = 1;
+}
+
+message ResponseJoin {
+  // status code
+  // 200 = success
+  // 400 = fail
+  uint32 code = 1;
+
+  oneof payload {
+    ResponseJoinSuccess success = 2;
+    ResponseJoinFail fail = 3;
+  }
+}
+
+message ResponseRoomInfoChanged {
+  RoomInfo room_info = 1;
+}
+
+message ResponseRoomClosed {
+  string Reason = 1;
+}
+
+// 通知客户端房间阶段变更
+// 响应体使用不同的NewStage字段而非不同的响应类型，以方便客户端分支处理
+message ResponseStageChange {
+  /* 新字段的常量
+	STAGE_InLobby   Stage = 0x20 // InLobby (房间.等待中): 房间刚被创建,所有人还在房间中，等待玩家加入，房主可以设置游戏。
+	STAGE_Preparing Stage = 0x21 // Preparing (房间.准备中): 房主已发起游戏，所有玩家选择装备并确认准备。
+	STAGE_Loading   Stage = 0x22 // Loading (游戏.加载中): 游戏开始前的加载阶段，所有玩家准备完毕后进入 InGame。
+	STAGE_InGame    Stage = 0x23 // InGame (游戏.游戏中): 所有玩家准备就绪，游戏正式开始，由定时器驱动逻辑。
+	STAGE_PostGame  Stage = 0x24 // PostGame (游戏.游戏后结算): 游戏结束，显示战绩，等待返回大厅。
+	STAGE_CLOSED Stage = 0xEE
+	STAGE_Error  Stage = 0xFF
+  */
+  uint32 NewStage = 1;
+
+  // 可以携带更多的数据
+  // 本框架自身不用此字段
+  optional bytes data = 2;
+}
+
+// 更新已经ready的人数
+message ResponseReadyCountUpdate {
+  uint32 ready_count = 1;
+  uint32 total_count = 2;
+}
+
+// 更新已经loaded的人数
+message ResponseLoadedCountUpdate {
+  uint32 loaded_count = 1;
+  uint32 total_count = 2;
+}
+
+
+// 用户的输入序列
+// 1. 影响权威游戏世界
+// 2. 直接进行帧同步广播
+message ClientInputData {
+  uint32 uid = 1;
+
+  // 用户发送数据时,其所在的FrameID
+  // 游戏世界需要自行处理例如延迟补偿等机制
+  //
+  // e.g. Lag Compensation, Display of Targets
+  uint32 frame_id = 2;
+
+  // 解析后的框架无关的额外Bytes,不带有帧ID的原始输入队列
+  // e.g. [{"method" : "move", "direction": "up"}, {"method": "attack", "targetID": 1234}]
+  bytes data = 3;
+}
+
+// 游戏事件
+message WorldEventData {
+  // 事件对哪个帧号造成影响
+  // 即事件后的下一帧
+  uint32 frame_id = 1;
+
+  // 事件的原始数据队列
+  // e.g. [{"eventType": "explosion", "position": [100,200]}]
+  //
+  // 如果是超大地图需要分chunk的游戏，此data也推荐用于顺便携带某next帧的某chunk状态同步数据
+  bytes data = 2;
+}
+
+// 每一帧的完整数据包
+message FrameData {
+  // 本次服务端将要步进到的帧 ID
+  // FrameData和input, events都带有FrameID字段是为了延迟补偿
+  // 告知客户端，之前的帧中有遗漏的操作和时间发生
+  uint32 frame_id = 1;
+
+  // 帧数据内容
+  // ---
+  // 包含了本帧所有用户的输入
+  repeated ClientInputData input_array = 2;
+  // 包含了本帧发生的所有游戏世界事件
+  repeated WorldEventData events = 3;
+
+  // Checksum 的类型应为 uint64 以接收 xxh3.Sum64() 的结果
+  uint64 checksum = 4;
+}
+
+message ResponseInGameFrames {
+  repeated FrameData frames = 1;
+}
+
+message ResponseEndGame {
+  // 游戏结束状态码
+  uint32 StatusCode = 1;
+  // 携带的bytes，框架将直接传给游戏世界处理
+  optional bytes data = 2;
+}
+
+// 其他响应
+// 例如聊天信息等不重要的
+message ResponseOther {
+  // 可以携带更多的数据
+  // 本框架自身不用此字段
+  optional bytes data = 1;
+}

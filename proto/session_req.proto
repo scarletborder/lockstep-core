@@ -1,0 +1,95 @@
+syntax = "proto3";
+
+package messages;
+
+option go_package = "./;messages";
+
+// 在长连接Session过程中，用户的所有可能请求
+// 因为客户端发送的消息会被统一的后端ws handler解析
+// 再根据后端room的状态进行分支处理
+message SessionRequest {
+  // oneof 确保一个 Request 消息实例中，只有一个字段能被设置
+  oneof payload {
+    // STAGE_InLobby
+    RequestInLobby in_lobby = 1;
+    RequestToPreparing to_preparing = 2;
+    // STAGE_Preparing
+    RequestReady ready = 3;
+    RequestToInLobby to_in_lobby = 4;
+    // STAGE_Loading
+    RequestLoaded loaded = 5;
+    // STAGE_InGame
+    RequestInGameFrames in_game_frames = 6;
+    RequestOther other = 7;
+    RequestEndGame end_game = 8;
+    // STAGE_PostGame
+    RequestToPostGame to_post_game = 9;
+  }
+}
+
+// InLobby 大厅中
+
+// RequestInLobby 大厅中的请求，透传给游戏世界
+message RequestInLobby {
+  // 携带的bytes，框架将直接传给游戏世界处理
+  bytes data = 1;
+}
+
+message RequestToPreparing {
+  // 携带的bytes，框架将直接传给游戏世界处理
+  // 例如关卡数据等
+  bytes data = 1;
+}
+
+// Preparing 准备阶段
+
+// Ready 表示某个客户端在选卡界面切换准备就绪
+message RequestReady {
+  bool isReady = 1;
+}
+
+// 请求返回大厅
+message RequestToInLobby {
+  // 携带的bytes，框架将直接传给游戏世界处理
+  bytes data = 1;
+}
+
+// Loading 加载阶段
+message RequestLoaded {
+  bool isLoaded = 1;
+}
+
+
+// InGame 游戏中
+
+// RequestBlank 用于心跳并携带具体用户请求
+message RequestInGameFrames {
+  // 本数据包所作操作是为了步进到的帧ID
+  uint32 frame_id = 1; 
+  // 客户端确认服务端上一次的“步进到”的帧ID
+  uint32 ack_frame_id = 2;
+  // 携带的bytes，框架将直接传给游戏世界处理
+  // 如果为空，则说明为没有操作空白帧
+  optional bytes data = 3;
+}
+
+
+
+message RequestEndGame {
+  // 游戏结束状态码
+  uint32 StatusCode = 1;
+  // 携带的bytes，框架将直接传给游戏世界处理
+  optional bytes data = 2;
+}
+
+// PostGame 游戏结束后
+message RequestToPostGame {
+  // 携带的bytes，框架将直接传给游戏世界处理
+  optional bytes data = 1;
+}
+
+// 请求，例如聊天信息
+message RequestOther {
+  // 携带的bytes，框架将直接传给游戏世界处理
+  bytes data = 1;
+}

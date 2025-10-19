@@ -1,14 +1,26 @@
 package config
 
-import "crypto/tls"
+import (
+	"crypto/tls"
+	"fmt"
+)
 
 type ServerConfig struct {
 	// 服务器监听地址
-	Addr          *string `toml:"addr"`
+	Host          *string `toml:"host"`
+	HttpPort      *uint16 `toml:"http_port"`
+	GrpcPort      *uint16 `toml:"grpc_port"`
 	MaxRoomNumber *uint32 `toml:"max_room_number"`
 }
 
-const DefaultAddr = "127.0.0.1:4433"
+// http addr
+func (c *ServerConfig) Addr() string {
+	return fmt.Sprintf("%s:%d", *c.Host, *c.HttpPort)
+}
+
+const DefaultHost = "127.0.0.1"
+const DefaultHttpPort = 4433
+const DefaultGrpcPort = 50051
 
 type LockstepConfig struct {
 	// 帧间隔
@@ -52,6 +64,10 @@ func Uint16Ptr(v uint16) *uint16 {
 	return &v
 }
 
+func StringPtr(v string) *string {
+	return &v
+}
+
 func (c *GeneralConfig) ApplyDefaults() {
 	if c.FrameInterval == nil {
 		c.FrameInterval = Uint32Ptr(DefaultFrameInterval)
@@ -64,6 +80,16 @@ func (c *GeneralConfig) ApplyDefaults() {
 	}
 	if c.DeterministicLockstep == nil {
 		c.DeterministicLockstep = Int32Ptr(DefaultDeterministicLockstep)
+	}
+
+	if c.Host == nil {
+		c.Host = StringPtr(DefaultHost)
+	}
+	if c.HttpPort == nil {
+		c.HttpPort = Uint16Ptr(DefaultHttpPort)
+	}
+	if c.GrpcPort == nil {
+		c.GrpcPort = Uint16Ptr(DefaultGrpcPort)
 	}
 }
 

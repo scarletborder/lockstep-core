@@ -1,6 +1,7 @@
 package client
 
 import (
+	"lockstep-core/src/messages"
 	"lockstep-core/src/pkg/lockstep/session"
 	lockstep_sync "lockstep-core/src/pkg/lockstep/sync"
 	"log"
@@ -14,7 +15,7 @@ type ClientMessage struct {
 
 	// 二进制消息内容
 	// 实际是 本框架的基础类型 + 拓展bytes
-	Data []byte
+	SessionRequest *messages.SessionRequest
 }
 
 type ClientMessagePool struct {
@@ -33,10 +34,10 @@ func NewClientMessagePool() *ClientMessagePool {
 
 // GetPlayerMessage
 // 从对象池获取并赋值一个 PlayerMessage
-func (p *ClientMessagePool) GetPlayerMessage(client *Client, data []byte) *ClientMessage {
+func (p *ClientMessagePool) GetPlayerMessage(client *Client, data *messages.SessionRequest) *ClientMessage {
 	msg := p.pool.Get().(*ClientMessage)
 	msg.Client = client
-	msg.Data = data
+	msg.SessionRequest = data
 	return msg
 }
 
@@ -44,7 +45,10 @@ func (p *ClientMessagePool) GetPlayerMessage(client *Client, data []byte) *Clien
 // 消费结束某消息后将 PlayerMessage 释放回对象池
 func (p *ClientMessagePool) ReleasePlayerMessage(msg *ClientMessage) {
 	msg.Client = nil
-	msg.Data = nil
+	if msg.SessionRequest != nil {
+		msg.SessionRequest.Reset()
+	}
+	msg.SessionRequest = nil
 	p.pool.Put(msg)
 }
 
