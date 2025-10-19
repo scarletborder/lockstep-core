@@ -1,27 +1,52 @@
 package world
 
-import "lockstep-core/src/constants"
-
 // IGameWorld 是需要由具体游戏工程实现的接口
 // 需要外部调用时实现游戏世界生命周期
 // 核心框架的 Room 将会调用这些方法
 type IGameWorld interface {
-	// OnCreate 当房间创建时调用，可用于初始化游戏世界
-	OnCreate(roomContext IRoomContext)
+	// OnCreateRoom 当房间创建时调用，可用于初始化游戏世界
+	OnCreateRoom(roomContext IRoomContext)
 
-	OnStageChange(oldStage, newStage constants.Stage)
+	// CouldJoinRoom 当有玩家尝试加入房间时调用
+	// 已经判断了基础鉴权，现在判断当前游戏世界是否允许该玩家加入
+	CouldJoinRoom(isReconnect bool) bool
 
-	// OnPlayerEnter 当有玩家进入或重连房间时，核心框架会调用此方法
-	OnPlayerEnter(uid uint32)
+	// OnPlayerJoin 当有玩家加入房间时调用已发送额外数据
+	OnPlayerJoin(uid uint32, isReconnect bool) (extraData []byte)
 
 	// OnPlayerLeave 当有玩家离开时调用
 	OnPlayerLeave(uid uint32)
+
+	// OnHandleInLobby 当有玩家在大厅状态下发送数据时调用
+	OnHandleInLobby(uid uint32, data []byte)
+
+	// OnHandleToPreparingStage 当有玩家请求进入准备阶段时调用
+	OnHandleToPreparingStage(uid uint32, data []byte) (canEnter bool)
+
+	// OnHandleReady 当有玩家在准备阶段切换准备状态时调用
+	OnHandleReady(uid uint32, isReady bool, extraData []byte)
+
+	// OnHandleToLobbyStage 当有玩家请求返回大厅时调用
+	OnHandleToLobbyStage(uid uint32) (canEnter bool)
+
+	// OnHandleLoaded 当有玩家在加载阶段时调用
+	OnHandleLoaded(uid uint32)
+
+	// InGame
 
 	// OnReceiveData 核心框架收到客户端的原始数据包后，直接透传给此方法
 	// 这是外部游戏世界处理用户输入的核心入口
 	//
 	// 游戏世界需要自行处理例如延迟补偿等机制
-	OnReceiveData(uid uint32, data ClientInputData)
+	OnReceiveClientInput(uid uint32, data ClientInputData)
+	// OnReceiveOtherData 当有玩家发送其他自定义数据时调用
+	OnReceiveOtherData(uid uint32, data []byte)
+
+	// OnHandleEndGame 当有玩家请求结束游戏时调用
+	OnHandleEndGame(uid uint32, statusCode uint32, data []byte) (canEnter bool)
+
+	// OnHandlePostGameData 当有玩家在游戏结束后发送数据时调用
+	OnHandlePostGameData(uid uint32, data []byte)
 
 	// OnTick 核心框架的 lockstep 时钟每帧会调用此方法
 	// 游戏世界需要在此方法内处理本帧所有输入，并推进游戏状态

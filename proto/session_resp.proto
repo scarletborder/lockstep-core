@@ -81,13 +81,13 @@ message ResponseStageChange {
 
 // 更新已经ready的人数
 message ResponseReadyCountUpdate {
-  uint32 ready_count = 1;
+  repeated uint32 ready_player_ids = 1;
   uint32 total_count = 2;
 }
 
 // 更新已经loaded的人数
 message ResponseLoadedCountUpdate {
-  uint32 loaded_count = 1;
+  repeated uint32 loaded_player_ids = 1;
   uint32 total_count = 2;
 }
 

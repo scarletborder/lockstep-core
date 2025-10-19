@@ -2,6 +2,7 @@ package room
 
 import (
 	"lockstep-core/src/constants"
+	"lockstep-core/src/messages"
 	"lockstep-core/src/pkg/lockstep/client"
 	"log"
 	"runtime/debug"
@@ -118,8 +119,32 @@ func (room *Room) handlePlayerMessage(msg *client.ClientMessage) {
 	// 更新房间活跃时间 - 任何玩家消息都表示房间是活跃的
 	room.UpdateActiveTime()
 
-	// TODO: 解析 用户消息并进行分支处理
-	
+	// 解析 用户消息并进行分支处理
+	payload := msg.SessionRequest.Payload
+
+	// 对 oneof 字段的具体类型进行 switch 并交由相应的 handler 处理
+	switch p := payload.(type) {
+	case *messages.SessionRequest_InLobby:
+		room.handleInLobby(msg.Client, p)
+	case *messages.SessionRequest_ToPreparing:
+		room.handleToPreparing(msg.Client, p)
+	case *messages.SessionRequest_Ready:
+		room.handleReady(msg.Client, p)
+	case *messages.SessionRequest_ToInLobby:
+		room.handleToInLobby(msg.Client, p)
+	case *messages.SessionRequest_Loaded:
+		room.handleLoaded(msg.Client, p)
+	case *messages.SessionRequest_InGameFrames:
+		room.handleInGameFrames(msg.Client, p)
+	case *messages.SessionRequest_Other:
+		room.handleOther(msg.Client, p)
+	case *messages.SessionRequest_EndGame:
+		room.handleEndGame(msg.Client, p)
+	case *messages.SessionRequest_PostGameData:
+		room.handlePostGameData(msg.Client, p)
+	default:
+		// unknown type - ignore
+	}
 }
 
 // runGameTick 定时器触发的游戏逻辑帧

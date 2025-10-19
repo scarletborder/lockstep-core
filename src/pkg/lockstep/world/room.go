@@ -8,6 +8,8 @@ type IRoomContext interface {
 	// # 通信服务
 
 	// Broadcast 向房间内所有客户端广播消息
+	// 你不应该由 roomContext 广播游戏权威数据
+	// 应该主动实现World接口的 GetFrameData 方法
 	// 游戏逻辑层负责将数据序列化为 []byte
 	Broadcast(data []byte)
 

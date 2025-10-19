@@ -23,7 +23,7 @@ message SessionRequest {
     RequestOther other = 7;
     RequestEndGame end_game = 8;
     // STAGE_PostGame
-    RequestToPostGame to_post_game = 9;
+    RequestPostGameData post_game_data = 9;
   }
 }
 
@@ -46,6 +46,8 @@ message RequestToPreparing {
 // Ready 表示某个客户端在选卡界面切换准备就绪
 message RequestReady {
   bool isReady = 1;
+  // 携带的bytes，例如装备数据
+  optional bytes data = 2;
 }
 
 // 请求返回大厅
@@ -74,7 +76,8 @@ message RequestInGameFrames {
 }
 
 
-
+// 申请结束游戏
+// 如果同意则跳转到 PostGame 阶段
 message RequestEndGame {
   // 游戏结束状态码
   uint32 StatusCode = 1;
@@ -82,8 +85,9 @@ message RequestEndGame {
   optional bytes data = 2;
 }
 
-// PostGame 游戏结束后
-message RequestToPostGame {
+// PostGame 游戏结束后的数据
+// 可能用于发送战绩数据等信息
+message RequestPostGameData {
   // 携带的bytes，框架将直接传给游戏世界处理
   optional bytes data = 1;
 }

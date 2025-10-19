@@ -216,9 +216,9 @@ export interface ResponseStageChange {
  */
 export interface ResponseReadyCountUpdate {
     /**
-     * @generated from protobuf field: uint32 ready_count = 1
+     * @generated from protobuf field: repeated uint32 ready_player_ids = 1
      */
-    readyCount: number;
+    readyPlayerIds: number[];
     /**
      * @generated from protobuf field: uint32 total_count = 2
      */
@@ -231,9 +231,9 @@ export interface ResponseReadyCountUpdate {
  */
 export interface ResponseLoadedCountUpdate {
     /**
-     * @generated from protobuf field: uint32 loaded_count = 1
+     * @generated from protobuf field: repeated uint32 loaded_player_ids = 1
      */
-    loadedCount: number;
+    loadedPlayerIds: number[];
     /**
      * @generated from protobuf field: uint32 total_count = 2
      */
@@ -262,7 +262,7 @@ export interface ClientInputData {
     frameId: number;
     /**
      * 解析后的框架无关的额外Bytes,不带有帧ID的原始输入队列
-     * e.g. [{"method" : "move", "direction": "up"}]
+     * e.g. [{"method" : "move", "direction": "up"}, {"method": "attack", "targetID": 1234}]
      *
      * @generated from protobuf field: bytes data = 3
      */
@@ -919,13 +919,13 @@ export const ResponseStageChange = new ResponseStageChange$Type();
 class ResponseReadyCountUpdate$Type extends MessageType<ResponseReadyCountUpdate> {
     constructor() {
         super("messages.ResponseReadyCountUpdate", [
-            { no: 1, name: "ready_count", kind: "scalar", T: 13 /*ScalarType.UINT32*/ },
+            { no: 1, name: "ready_player_ids", kind: "scalar", repeat: 1 /*RepeatType.PACKED*/, T: 13 /*ScalarType.UINT32*/ },
             { no: 2, name: "total_count", kind: "scalar", T: 13 /*ScalarType.UINT32*/ }
         ]);
     }
     create(value?: PartialMessage<ResponseReadyCountUpdate>): ResponseReadyCountUpdate {
         const message = globalThis.Object.create((this.messagePrototype!));
-        message.readyCount = 0;
+        message.readyPlayerIds = [];
         message.totalCount = 0;
         if (value !== undefined)
             reflectionMergePartial<ResponseReadyCountUpdate>(this, message, value);
@@ -936,8 +936,12 @@ class ResponseReadyCountUpdate$Type extends MessageType<ResponseReadyCountUpdate
         while (reader.pos < end) {
             let [fieldNo, wireType] = reader.tag();
             switch (fieldNo) {
-                case /* uint32 ready_count */ 1:
-                    message.readyCount = reader.uint32();
+                case /* repeated uint32 ready_player_ids */ 1:
+                    if (wireType === WireType.LengthDelimited)
+                        for (let e = reader.int32() + reader.pos; reader.pos < e;)
+                            message.readyPlayerIds.push(reader.uint32());
+                    else
+                        message.readyPlayerIds.push(reader.uint32());
                     break;
                 case /* uint32 total_count */ 2:
                     message.totalCount = reader.uint32();
@@ -954,9 +958,13 @@ class ResponseReadyCountUpdate$Type extends MessageType<ResponseReadyCountUpdate
         return message;
     }
     internalBinaryWrite(message: ResponseReadyCountUpdate, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
-        /* uint32 ready_count = 1; */
-        if (message.readyCount !== 0)
-            writer.tag(1, WireType.Varint).uint32(message.readyCount);
+        /* repeated uint32 ready_player_ids = 1; */
+        if (message.readyPlayerIds.length) {
+            writer.tag(1, WireType.LengthDelimited).fork();
+            for (let i = 0; i < message.readyPlayerIds.length; i++)
+                writer.uint32(message.readyPlayerIds[i]);
+            writer.join();
+        }
         /* uint32 total_count = 2; */
         if (message.totalCount !== 0)
             writer.tag(2, WireType.Varint).uint32(message.totalCount);
@@ -974,13 +982,13 @@ export const ResponseReadyCountUpdate = new ResponseReadyCountUpdate$Type();
 class ResponseLoadedCountUpdate$Type extends MessageType<ResponseLoadedCountUpdate> {
     constructor() {
         super("messages.ResponseLoadedCountUpdate", [
-            { no: 1, name: "loaded_count", kind: "scalar", T: 13 /*ScalarType.UINT32*/ },
+            { no: 1, name: "loaded_player_ids", kind: "scalar", repeat: 1 /*RepeatType.PACKED*/, T: 13 /*ScalarType.UINT32*/ },
             { no: 2, name: "total_count", kind: "scalar", T: 13 /*ScalarType.UINT32*/ }
         ]);
     }
     create(value?: PartialMessage<ResponseLoadedCountUpdate>): ResponseLoadedCountUpdate {
         const message = globalThis.Object.create((this.messagePrototype!));
-        message.loadedCount = 0;
+        message.loadedPlayerIds = [];
         message.totalCount = 0;
         if (value !== undefined)
             reflectionMergePartial<ResponseLoadedCountUpdate>(this, message, value);
@@ -991,8 +999,12 @@ class ResponseLoadedCountUpdate$Type extends MessageType<ResponseLoadedCountUpda
         while (reader.pos < end) {
             let [fieldNo, wireType] = reader.tag();
             switch (fieldNo) {
-                case /* uint32 loaded_count */ 1:
-                    message.loadedCount = reader.uint32();
+                case /* repeated uint32 loaded_player_ids */ 1:
+                    if (wireType === WireType.LengthDelimited)
+                        for (let e = reader.int32() + reader.pos; reader.pos < e;)
+                            message.loadedPlayerIds.push(reader.uint32());
+                    else
+                        message.loadedPlayerIds.push(reader.uint32());
                     break;
                 case /* uint32 total_count */ 2:
                     message.totalCount = reader.uint32();
@@ -1009,9 +1021,13 @@ class ResponseLoadedCountUpdate$Type extends MessageType<ResponseLoadedCountUpda
         return message;
     }
     internalBinaryWrite(message: ResponseLoadedCountUpdate, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
-        /* uint32 loaded_count = 1; */
-        if (message.loadedCount !== 0)
-            writer.tag(1, WireType.Varint).uint32(message.loadedCount);
+        /* repeated uint32 loaded_player_ids = 1; */
+        if (message.loadedPlayerIds.length) {
+            writer.tag(1, WireType.LengthDelimited).fork();
+            for (let i = 0; i < message.loadedPlayerIds.length; i++)
+                writer.uint32(message.loadedPlayerIds[i]);
+            writer.join();
+        }
         /* uint32 total_count = 2; */
         if (message.totalCount !== 0)
             writer.tag(2, WireType.Varint).uint32(message.totalCount);

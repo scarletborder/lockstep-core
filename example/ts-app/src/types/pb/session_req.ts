@@ -80,13 +80,13 @@ export interface SessionRequest {
          */
         endGame: RequestEndGame;
     } | {
-        oneofKind: "toPostGame";
+        oneofKind: "postGameData";
         /**
          * STAGE_PostGame
          *
-         * @generated from protobuf field: messages.RequestToPostGame to_post_game = 9
+         * @generated from protobuf field: messages.RequestPostGameData post_game_data = 9
          */
-        toPostGame: RequestToPostGame;
+        postGameData: RequestPostGameData;
     } | {
         oneofKind: undefined;
     };
@@ -130,6 +130,12 @@ export interface RequestReady {
      * @generated from protobuf field: bool isReady = 1
      */
     isReady: boolean;
+    /**
+     * 携带的bytes，例如装备数据
+     *
+     * @generated from protobuf field: optional bytes data = 2
+     */
+    data?: Uint8Array;
 }
 /**
  * 请求返回大厅
@@ -184,6 +190,9 @@ export interface RequestInGameFrames {
     data?: Uint8Array;
 }
 /**
+ * 申请结束游戏
+ * 如果同意则跳转到 PostGame 阶段
+ *
  * @generated from protobuf message messages.RequestEndGame
  */
 export interface RequestEndGame {
@@ -201,11 +210,12 @@ export interface RequestEndGame {
     data?: Uint8Array;
 }
 /**
- * PostGame 游戏结束后
+ * PostGame 游戏结束后的数据
+ * 可能用于发送战绩数据等信息
  *
- * @generated from protobuf message messages.RequestToPostGame
+ * @generated from protobuf message messages.RequestPostGameData
  */
-export interface RequestToPostGame {
+export interface RequestPostGameData {
     /**
      * 携带的bytes，框架将直接传给游戏世界处理
      *
@@ -238,7 +248,7 @@ class SessionRequest$Type extends MessageType<SessionRequest> {
             { no: 6, name: "in_game_frames", kind: "message", oneof: "payload", T: () => RequestInGameFrames },
             { no: 7, name: "other", kind: "message", oneof: "payload", T: () => RequestOther },
             { no: 8, name: "end_game", kind: "message", oneof: "payload", T: () => RequestEndGame },
-            { no: 9, name: "to_post_game", kind: "message", oneof: "payload", T: () => RequestToPostGame }
+            { no: 9, name: "post_game_data", kind: "message", oneof: "payload", T: () => RequestPostGameData }
         ]);
     }
     create(value?: PartialMessage<SessionRequest>): SessionRequest {
@@ -301,10 +311,10 @@ class SessionRequest$Type extends MessageType<SessionRequest> {
                         endGame: RequestEndGame.internalBinaryRead(reader, reader.uint32(), options, (message.payload as any).endGame)
                     };
                     break;
-                case /* messages.RequestToPostGame to_post_game */ 9:
+                case /* messages.RequestPostGameData post_game_data */ 9:
                     message.payload = {
-                        oneofKind: "toPostGame",
-                        toPostGame: RequestToPostGame.internalBinaryRead(reader, reader.uint32(), options, (message.payload as any).toPostGame)
+                        oneofKind: "postGameData",
+                        postGameData: RequestPostGameData.internalBinaryRead(reader, reader.uint32(), options, (message.payload as any).postGameData)
                     };
                     break;
                 default:
@@ -343,9 +353,9 @@ class SessionRequest$Type extends MessageType<SessionRequest> {
         /* messages.RequestEndGame end_game = 8; */
         if (message.payload.oneofKind === "endGame")
             RequestEndGame.internalBinaryWrite(message.payload.endGame, writer.tag(8, WireType.LengthDelimited).fork(), options).join();
-        /* messages.RequestToPostGame to_post_game = 9; */
-        if (message.payload.oneofKind === "toPostGame")
-            RequestToPostGame.internalBinaryWrite(message.payload.toPostGame, writer.tag(9, WireType.LengthDelimited).fork(), options).join();
+        /* messages.RequestPostGameData post_game_data = 9; */
+        if (message.payload.oneofKind === "postGameData")
+            RequestPostGameData.internalBinaryWrite(message.payload.postGameData, writer.tag(9, WireType.LengthDelimited).fork(), options).join();
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
@@ -454,7 +464,8 @@ export const RequestToPreparing = new RequestToPreparing$Type();
 class RequestReady$Type extends MessageType<RequestReady> {
     constructor() {
         super("messages.RequestReady", [
-            { no: 1, name: "isReady", kind: "scalar", T: 8 /*ScalarType.BOOL*/ }
+            { no: 1, name: "isReady", kind: "scalar", T: 8 /*ScalarType.BOOL*/ },
+            { no: 2, name: "data", kind: "scalar", opt: true, T: 12 /*ScalarType.BYTES*/ }
         ]);
     }
     create(value?: PartialMessage<RequestReady>): RequestReady {
@@ -472,6 +483,9 @@ class RequestReady$Type extends MessageType<RequestReady> {
                 case /* bool isReady */ 1:
                     message.isReady = reader.bool();
                     break;
+                case /* optional bytes data */ 2:
+                    message.data = reader.bytes();
+                    break;
                 default:
                     let u = options.readUnknownField;
                     if (u === "throw")
@@ -487,6 +501,9 @@ class RequestReady$Type extends MessageType<RequestReady> {
         /* bool isReady = 1; */
         if (message.isReady !== false)
             writer.tag(1, WireType.Varint).bool(message.isReady);
+        /* optional bytes data = 2; */
+        if (message.data !== undefined)
+            writer.tag(2, WireType.LengthDelimited).bytes(message.data);
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
@@ -708,19 +725,19 @@ class RequestEndGame$Type extends MessageType<RequestEndGame> {
  */
 export const RequestEndGame = new RequestEndGame$Type();
 // @generated message type with reflection information, may provide speed optimized methods
-class RequestToPostGame$Type extends MessageType<RequestToPostGame> {
+class RequestPostGameData$Type extends MessageType<RequestPostGameData> {
     constructor() {
-        super("messages.RequestToPostGame", [
+        super("messages.RequestPostGameData", [
             { no: 1, name: "data", kind: "scalar", opt: true, T: 12 /*ScalarType.BYTES*/ }
         ]);
     }
-    create(value?: PartialMessage<RequestToPostGame>): RequestToPostGame {
+    create(value?: PartialMessage<RequestPostGameData>): RequestPostGameData {
         const message = globalThis.Object.create((this.messagePrototype!));
         if (value !== undefined)
-            reflectionMergePartial<RequestToPostGame>(this, message, value);
+            reflectionMergePartial<RequestPostGameData>(this, message, value);
         return message;
     }
-    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: RequestToPostGame): RequestToPostGame {
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: RequestPostGameData): RequestPostGameData {
         let message = target ?? this.create(), end = reader.pos + length;
         while (reader.pos < end) {
             let [fieldNo, wireType] = reader.tag();
@@ -739,7 +756,7 @@ class RequestToPostGame$Type extends MessageType<RequestToPostGame> {
         }
         return message;
     }
-    internalBinaryWrite(message: RequestToPostGame, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+    internalBinaryWrite(message: RequestPostGameData, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
         /* optional bytes data = 1; */
         if (message.data !== undefined)
             writer.tag(1, WireType.LengthDelimited).bytes(message.data);
@@ -750,9 +767,9 @@ class RequestToPostGame$Type extends MessageType<RequestToPostGame> {
     }
 }
 /**
- * @generated MessageType for protobuf message messages.RequestToPostGame
+ * @generated MessageType for protobuf message messages.RequestPostGameData
  */
-export const RequestToPostGame = new RequestToPostGame$Type();
+export const RequestPostGameData = new RequestPostGameData$Type();
 // @generated message type with reflection information, may provide speed optimized methods
 class RequestOther$Type extends MessageType<RequestOther> {
     constructor() {
