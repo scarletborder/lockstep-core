@@ -4,9 +4,12 @@ import (
 	"lockstep-core/src/constants"
 	"lockstep-core/src/messages"
 	"lockstep-core/src/pkg/lockstep/client"
+	"lockstep-core/src/pkg/lockstep/world"
 	"log"
 	"runtime/debug"
 	"time"
+
+	"google.golang.org/protobuf/proto"
 )
 
 // Run 房间状态机主循环
@@ -155,19 +158,94 @@ func (room *Room) stepGameTick() {
 		log.Printf("⚠️ No players online in room %v, skipping game tick", room.ID)
 		return
 	}
+
+	// 如果没有启用乐观锁，判断是否停止等待
+	if *room.LockstepConfig.MaxDelayFrames >= 0 && !room.HasAllPlayerSync() {
+		// 跳过本次
+		return
+	}
+
 	// 本次frame step行为将有效，更新最后活动时间
 	room.LastActiveTime = time.Now()
 	// 这一次step行为的目标帧号
 	nextRenderFrame := room.SyncData.NextFrameID.Load()
 
-	// TODO: 读取 operation chan 并广播
+	// 步进到下一帧所需的FrameData
+	frameData := room.Game.GetFrameData(nextRenderFrame, world.WorldOptions{
+		ChunkID: 0,
+	})
 
-	defer func() {
-		// 步进
-		room.SyncData.NextFrameID.Add(1)
-		// 更新游戏逻辑
-		// room.Logic.Reset()
-	}()
+	room.SyncData.StoreFrame(nextRenderFrame, &frameData)
 
-	log.Printf("🎮 Game tick: frame %d", nextRenderFrame)
+	// 步进，防止耗时的发送操作阻塞逻辑更新
+	room.SyncData.NextFrameID.Add(1)
+
+	// 预组装所有帧数据以优化发送
+	var oldestAsk uint32 = 0xFFFFFFFF
+	room.ClientsContainer.Clients.Range(func(key uint32, value *client.Client) bool {
+		ack := value.LatestAckNextFrameID.Load()
+		if ack < nextRenderFrame {
+			oldestAsk = ack
+		}
+		return true
+	})
+
+	if oldestAsk == 0xFFFFFFFF {
+		// 发送空
+		resp := &messages.SessionResponse{
+			Payload: &messages.SessionResponse_InGameFrames{
+				InGameFrames: &messages.ResponseInGameFrames{
+					Frames: []*messages.FrameData{},
+				},
+			},
+		}
+		room.ClientsContainer.Clients.Range(func(key uint32, value *client.Client) bool {
+			go func(client *client.Client) {
+				data, err := proto.Marshal(resp)
+				if err != nil {
+					log.Printf("Failed to marshal empty frame data for client %d: %v", client.GetID(), err)
+					return
+				}
+				client.Write(data)
+			}(value)
+			return true
+		})
+		// 结束发送空
+		return
+	}
+
+	allFrames := make([]*messages.FrameData, 0, nextRenderFrame-oldestAsk)
+	for i := oldestAsk + 1; i <= nextRenderFrame; i++ {
+		if frame, ok := room.SyncData.GetFrame(i); ok {
+			allFrames = append(allFrames, (*messages.FrameData)(frame))
+		}
+	}
+
+	// 为每位用户发送ack至目前的帧
+	room.ClientsContainer.Clients.Range(func(key uint32, value *client.Client) bool {
+		go func(client *client.Client) {
+			// 用户已经确认了“步进到ack”所需的帧数据，
+			// 需要向他传递 "步进到ack+1", "步进到ack+2" ... "步进到nextRenderFrame" 的所有帧数据
+			ack := client.LatestAckNextFrameID.Load()
+			if ack >= nextRenderFrame {
+				return
+			}
+			frames := allFrames[ack-oldestAsk : nextRenderFrame-oldestAsk]
+			resp := &messages.SessionResponse{
+				Payload: &messages.SessionResponse_InGameFrames{
+					InGameFrames: &messages.ResponseInGameFrames{
+						Frames: frames,
+					},
+				},
+			}
+			data, err := proto.Marshal(resp)
+			if err != nil {
+				log.Printf("Failed to marshal frame data for client %d: %v", client.GetID(), err)
+				return
+			}
+			client.Write(data)
+		}(value)
+		return true
+	})
+
 }

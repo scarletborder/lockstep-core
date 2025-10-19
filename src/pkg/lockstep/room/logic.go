@@ -82,6 +82,10 @@ func (room *Room) handleInGameFrames(from *client.Client, payload *messages.Sess
 		return
 	}
 	uid := from.GetID()
+	// 更新ack
+	from.LatestAckNextFrameID.Store(payload.InGameFrames.GetAckFrameId())
+	from.LatestNextFrameID.Store(payload.InGameFrames.GetFrameId())
+
 	room.Game.OnReceiveClientInput(uid, world.ClientInputData{
 		Uid:     uid,
 		FrameID: payload.InGameFrames.FrameId,

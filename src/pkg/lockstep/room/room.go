@@ -147,6 +147,12 @@ func (room *Room) Destroy() {
 		// TODO: 发送房间关闭消息
 		// room.RoomCtx.BroadcastMessage(...)
 
+		// Game world
+		if room.Game != nil {
+			room.Game.OnDestroy()
+			room.Game = nil
+		}
+
 		// 通知房间关闭
 		room.RoomStage.Store(constants.STAGE_CLOSED)
 
