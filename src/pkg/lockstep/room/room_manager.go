@@ -3,6 +3,7 @@ package room
 import (
 	"fmt"
 	"lockstep-core/src/config"
+	"lockstep-core/src/pkg/lockstep/world"
 	"lockstep-core/src/utils"
 	"log"
 	"sync"
@@ -17,16 +18,23 @@ type RoomManager struct {
 	// 传入roomid,用于接收房间的停止信号
 	stopChan chan uint32
 
+	// function to new game world
+	NewGameWorld func(rctx world.IRoomContext) world.IGameWorld
+
 	// cfg
 	config.LockstepConfig
 	config.ServerConfig
 }
 
 // NewRoomManager 创建一个新的 RoomManager 实例
-func NewRoomManager(cfg *config.RuntimeConfig) *RoomManager {
+func NewRoomManager(
+	newFunc func(rctx world.IRoomContext) world.IGameWorld,
+	cfg *config.RuntimeConfig,
+) *RoomManager {
 	rm := &RoomManager{
 		rooms:           make(map[uint32]*Room),
 		stopChan:        make(chan uint32, 100), // 缓冲通道
+		NewGameWorld:    newFunc,
 		LockstepConfig:  cfg.LockstepConfig,
 		ServerConfig:    cfg.ServerConfig,
 		SafeIDAllocator: *utils.NewSafeIDAllocator(utils.RoundUpTo64(uint32(*cfg.MaxRoomNumber))),
@@ -85,6 +93,9 @@ func (rm *RoomManager) CreateRoom(name string, key string) (*Room, error) {
 	rm.rooms[roomID] = room
 
 	// 启动房间的状态机循环
+	room_impl := NewRoomContextImpl(room)
+	room.Game = rm.NewGameWorld(room_impl)
+
 	go room.Run()
 	log.Printf("🟢 Room %d created and started", roomID)
 
