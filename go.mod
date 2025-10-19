@@ -14,20 +14,20 @@ require (
 	google.golang.org/protobuf v1.36.10
 )
 
-require github.com/BurntSushi/toml v1.5.0
-
 require (
-	github.com/alphadose/haxmap v1.4.1 // indirect
-	github.com/gorilla/websocket v1.5.3 // indirect
-	github.com/klauspost/cpuid/v2 v2.3.0 // indirect
-	github.com/zeebo/xxh3 v1.0.2 // indirect
+	github.com/BurntSushi/toml v1.5.0
+	github.com/alphadose/haxmap v1.4.1
+	github.com/gorilla/websocket v1.5.3
+	github.com/zeebo/xxh3 v1.0.2
 )
+
+require github.com/klauspost/cpuid/v2 v2.3.0 // indirect
 
 require (
 	github.com/adrg/xdg v0.5.3
 	github.com/quic-go/qpack v0.5.1 // indirect
 	golang.org/x/crypto v0.43.0 // indirect
-	golang.org/x/exp v0.0.0-20251017212417-90e834f514db
+	golang.org/x/exp v0.0.0-20251017212417-90e834f514db // indirect
 	golang.org/x/mod v0.29.0 // indirect
 	golang.org/x/net v0.46.0 // indirect
 	golang.org/x/sync v0.17.0 // indirect

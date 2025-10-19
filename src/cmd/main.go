@@ -3,9 +3,9 @@ package main
 import (
 	"flag"
 	"fmt"
+	"lockstep-core/src/app"
 	"lockstep-core/src/constants"
 	"lockstep-core/src/internal/defaults"
-	"lockstep-core/src/internal/di"
 	"lockstep-core/src/utils"
 	"lockstep-core/src/utils/tls"
 	"log"
@@ -33,18 +33,8 @@ func main() {
 		return
 	}
 
-	// 使用对外暴露的初始化函数，并注入默认的 NewGameWorld 实现（CLI 保持向后兼容）
-	// 生产中，外部调用方可以通过 di.InitializeWithGameWorld 注入自己的 NewGameWorld
-	handlers, err := di.InitializeWithGameWorld(defaults.DefaultNewGameWorld)
-	if err != nil {
-		log.Fatalf("Failed to initialize application: %v", err)
-	}
-
-	// 注册路由
-	handlers.RegisterHandlers()
-
-	// 启动服务器
-	if err := handlers.Start(); err != nil {
+	// 使用对外导出的 app 包启动，内部默认使用 internal/defaults.DefaultNewGameWorld
+	if err := app.StartWith(defaults.DefaultNewGameWorld); err != nil {
 		log.Fatalf("Failed to start server: %v", err)
 	}
 }
