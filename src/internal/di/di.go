@@ -1,8 +1,8 @@
 package di
 
 import (
-    "lockstep-core/src/internal/server"
-    "lockstep-core/src/pkg/lockstep/room"
+	"lockstep-core/src/internal/server"
+	"lockstep-core/src/pkg/lockstep/room"
 )
 
 // initializeApp 是包级可替换的初始化器。默认实现为 InitializeApplicationManual。
@@ -12,6 +12,5 @@ var initializeApp func(room.NewGameWorldFunc) (*server.Serverandlers, error) = I
 // InitializeWithGameWorld 提供给外部使用的初始化函数
 // newGameWorld 为外部实现的游戏世界构造函数
 func InitializeWithGameWorld(newGameWorld room.NewGameWorldFunc) (*server.Serverandlers, error) {
-    return initializeApp(newGameWorld)
+	return initializeApp(newGameWorld)
 }
-
