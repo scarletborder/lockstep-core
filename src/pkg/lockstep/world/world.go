@@ -27,7 +27,7 @@ type IGameWorld interface {
 	OnHandleReady(uid uint32, isReady bool, extraData []byte)
 
 	// OnHandleToLobbyStage 当有玩家请求返回大厅时调用
-	OnHandleToLobbyStage(uid uint32) (canEnter bool)
+	OnHandleToLobbyStage(uid uint32, extraData []byte) (canEnter bool)
 
 	// OnHandleLoaded 当有玩家在加载阶段时调用
 	OnHandleLoaded(uid uint32)
@@ -46,7 +46,7 @@ type IGameWorld interface {
 	OnHandleEndGame(uid uint32, statusCode uint32, data []byte) (canEnter bool)
 
 	// OnHandlePostGameData 当有玩家在游戏结束后发送数据时调用
-	OnHandlePostGameData(uid uint32, data []byte)
+	OnHandlePostGameData(uid uint32, data []byte) (backToLobby bool)
 
 	// OnTick 核心框架的 lockstep 时钟每帧会调用此方法
 	// 游戏世界需要在此方法内处理本帧所有输入，并推进游戏状态
