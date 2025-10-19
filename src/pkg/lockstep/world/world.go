@@ -27,14 +27,23 @@ type IGameWorld interface {
 	// 游戏世界需要在此方法内处理本帧所有输入，并推进游戏状态
 	Tick()
 
-	// GetSnapshot 核心框架在 Tick() 之后调用多次此方法做到自适应ack冗余发送
+	// GetFrameData 核心框架在 Tick() 之后调用多次此方法做到自适应ack冗余发送
 	// 外部游戏世界在接受了“必定来自过去”的帧操作后，需要转发用户操作和游戏事件
 	// 因此本方法用于从外部游戏世界获取需要 “广播给所有客户端” 的同步数据
 	// 即操作序列和权威事件列表(不能仅在客户端预测的事件，如技能释放，伤害计算等)
 	//
 	// frameId : 为了从(frameId-1)跳到frameId所需的帧数据
-	GetSnapshot(uid uint32, frameId uint32) FrameData
+	GetFrameData(frameId uint32, o WorldOptions) FrameData
+
+	// GetSnapshot 获取状态快照，以方便拉帧快进
+	// frameId : 操作处理完后的已经步进到达的帧号
+	GetSnapshot(frameId uint32, o WorldOptions) []byte
 
 	// OnDestroy 当房间销毁时调用，用于资源释放
 	OnDestroy()
+}
+
+type WorldOptions struct {
+	// FUTURE: 未来将拓展为多chunk以方便lockstep场景下的大世界
+	ChunkID uint64
 }
