@@ -88,7 +88,7 @@ func (room *Room) handleInGameFrames(from *client.Client, payload *messages.Sess
 
 	room.Game.OnReceiveClientInput(uid, world.ClientInputData{
 		Uid:     uid,
-		FrameID: payload.InGameFrames.FrameId,
+		FrameId: payload.InGameFrames.FrameId,
 		Data:    payload.InGameFrames.GetData(),
 	})
 }
@@ -134,5 +134,5 @@ func (room *Room) handlePostGameData(from *client.Client, payload *messages.Sess
 
 // GameClientInput 辅助方法：把 []byte 包装为 world.ClientInputData
 func (room *Room) GameClientInput(b []byte) world.ClientInputData {
-	return world.ClientInputData{Uid: 0, FrameID: 0, Data: b}
+	return world.ClientInputData{Uid: 0, FrameId: 0, Data: b}
 }
