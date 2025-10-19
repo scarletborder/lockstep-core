@@ -29,9 +29,9 @@ type IRoomContext interface {
 	// 返回 IPlayer 接口切片，只暴露核心信息（如UID）
 	GetAllPlayers() []uint32
 
-	// GetCurrentFrame 获取当前 lockstep 的帧号
+	// GetNextFrame 获取步进到的下一 lockstep 的帧号
 	// 这是与 SyncData 交互的最关键部分
-	GetCurrentFrame() uint32
+	GetNextFrame() uint32
 
 	// # 动作请求
 
