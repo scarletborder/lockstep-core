@@ -119,6 +119,7 @@ func (room *Room) handlePlayerMessage(msg *client.ClientMessage) {
 	room.UpdateActiveTime()
 
 	// TODO: 解析 用户消息并进行分支处理
+	
 }
 
 // runGameTick 定时器触发的游戏逻辑帧
@@ -139,8 +140,6 @@ func (room *Room) stepGameTick() {
 	defer func() {
 		// 步进
 		room.SyncData.NextFrameID.Add(1)
-		// 删除本帧的操作 ID 记录
-		room.SyncData.DeleteOperationID(nextRenderFrame)
 		// 更新游戏逻辑
 		// room.Logic.Reset()
 	}()

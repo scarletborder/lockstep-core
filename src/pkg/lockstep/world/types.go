@@ -93,3 +93,8 @@ func (fd *FrameData) CalculateChecksum() uint64 {
 func (fd *FrameData) SetChecksum() {
 	fd.Checksum = fd.CalculateChecksum()
 }
+
+// Snapshot 表示游戏世界的状态快照
+type Snapshot interface {
+	GetData() []byte
+}

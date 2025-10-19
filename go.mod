@@ -26,6 +26,7 @@ require (
 	github.com/adrg/xdg v0.5.3
 	github.com/quic-go/qpack v0.5.1 // indirect
 	golang.org/x/crypto v0.43.0 // indirect
+	golang.org/x/exp v0.0.0-20251017212417-90e834f514db
 	golang.org/x/mod v0.29.0 // indirect
 	golang.org/x/net v0.46.0 // indirect
 	golang.org/x/sync v0.17.0 // indirect

@@ -37,7 +37,7 @@ type IGameWorld interface {
 
 	// GetSnapshot 获取状态快照，以方便拉帧快进
 	// frameId : 操作处理完后的已经步进到达的帧号
-	GetSnapshot(frameId uint32, o WorldOptions) []byte
+	GetSnapshot(frameId uint32, o WorldOptions) Snapshot
 
 	// OnDestroy 当房间销毁时调用，用于资源释放
 	OnDestroy()
@@ -45,5 +45,5 @@ type IGameWorld interface {
 
 type WorldOptions struct {
 	// FUTURE: 未来将拓展为多chunk以方便lockstep场景下的大世界
-	ChunkID uint64
+	ChunkID int
 }
