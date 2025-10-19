@@ -4,6 +4,7 @@ import (
 	"flag"
 	"fmt"
 	"lockstep-core/src/constants"
+	"lockstep-core/src/internal/defaults"
 	"lockstep-core/src/internal/di"
 	"lockstep-core/src/utils"
 	"lockstep-core/src/utils/tls"
@@ -32,8 +33,9 @@ func main() {
 		return
 	}
 
-	// 使用 Wire 生成的初始化函数
-	handlers, err := di.InitializeApplication()
+	// 使用对外暴露的初始化函数，并注入默认的 NewGameWorld 实现（CLI 保持向后兼容）
+	// 生产中，外部调用方可以通过 di.InitializeWithGameWorld 注入自己的 NewGameWorld
+	handlers, err := di.InitializeWithGameWorld(defaults.DefaultNewGameWorld)
 	if err != nil {
 		log.Fatalf("Failed to initialize application: %v", err)
 	}

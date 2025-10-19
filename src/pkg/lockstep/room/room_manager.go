@@ -9,6 +9,8 @@ import (
 	"sync"
 )
 
+type NewGameWorldFunc func(rctx world.IRoomContext) world.IGameWorld
+
 // RoomManager 管理所有游戏房间
 type RoomManager struct {
 	rooms map[uint32]*Room
@@ -19,7 +21,7 @@ type RoomManager struct {
 	stopChan chan uint32
 
 	// function to new game world
-	NewGameWorld func(rctx world.IRoomContext) world.IGameWorld
+	NewGameWorld NewGameWorldFunc
 
 	// cfg
 	config.LockstepConfig
@@ -28,7 +30,7 @@ type RoomManager struct {
 
 // NewRoomManager 创建一个新的 RoomManager 实例
 func NewRoomManager(
-	newFunc func(rctx world.IRoomContext) world.IGameWorld,
+	newFunc NewGameWorldFunc,
 	cfg *config.RuntimeConfig,
 ) *RoomManager {
 	rm := &RoomManager{
