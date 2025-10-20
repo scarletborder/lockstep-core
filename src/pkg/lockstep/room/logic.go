@@ -49,6 +49,34 @@ func (room *Room) handleReady(from *client.Client, payload *messages.SessionRequ
 		return
 	}
 	room.Game.OnHandleReady(from.GetID(), payload.Ready.IsReady, payload.Ready.GetData())
+	var readyPlayerIds []uint32 = make([]uint32, 0)
+	var playerCount uint32 = 0
+	room.ClientsContainer.Clients.Range(func(key uint32, value *client.Client) bool {
+		if value != nil && value.IsReady {
+			readyPlayerIds = append(readyPlayerIds, key)
+		}
+		playerCount++
+		return true
+	})
+	// 广播准备状态变更
+	innerReadyResp := &messages.ResponseReadyCountUpdate{
+		ReadyPlayerIds: readyPlayerIds,
+		TotalCount:     uint32(playerCount),
+	}
+	sresp := &messages.SessionResponse{Payload: &messages.SessionResponse_ReadyCountUpdate{ReadyCountUpdate: innerReadyResp}}
+	room.BroadcastMessage(sresp, []uint32{})
+
+	if playerCount == uint32(len(readyPlayerIds)) {
+		// 所有玩家均已准备好
+		data := room.Game.OnHandleAllReady()
+		room.RoomStage.ForwardStage()
+		innerStage := &messages.ResponseStageChange{
+			NewStage: uint32(constants.STAGE_Loading),
+			Data:     data,
+		}
+		sresp := &messages.SessionResponse{Payload: &messages.SessionResponse_StageChange{StageChange: innerStage}}
+		room.BroadcastMessage(sresp, []uint32{})
+	}
 }
 
 // 返回大厅
@@ -62,15 +90,44 @@ func (room *Room) handleToInLobby(from *client.Client, payload *messages.Session
 	if room.Game.OnHandleToLobbyStage(from.GetID(), payload.ToInLobby.GetData()) {
 		// 允许返回大厅
 		room.RoomStage.Store(constants.STAGE_InLobby)
+		innerStage := &messages.ResponseStageChange{NewStage: uint32(constants.STAGE_InLobby)}
+		sresp := &messages.SessionResponse{Payload: &messages.SessionResponse_StageChange{StageChange: innerStage}}
+		room.BroadcastMessage(sresp, []uint32{})
 	}
 }
 
 // 玩家加载完成
 func (room *Room) handleLoaded(from *client.Client, payload *messages.SessionRequest_Loaded) {
+	var playerCount uint32 = 0
 	if room == nil || from == nil || payload == nil || payload.Loaded == nil {
 		return
 	}
+	room.Game.OnHandleLoaded(from.GetID())
 	from.IsLoaded = true
+	var loadedPlayerIds []uint32 = make([]uint32, 0)
+	room.ClientsContainer.Clients.Range(func(key uint32, value *client.Client) bool {
+		if value != nil && value.IsLoaded {
+			loadedPlayerIds = append(loadedPlayerIds, key)
+		}
+		playerCount++
+		return true
+	})
+	// 广播加载状态变更
+	innerLoadedResp := &messages.ResponseLoadedCountUpdate{
+		LoadedPlayerIds: loadedPlayerIds,
+		TotalCount:      uint32(playerCount),
+	}
+	srespLoaded := &messages.SessionResponse{Payload: &messages.SessionResponse_LoadedCountUpdate{LoadedCountUpdate: innerLoadedResp}}
+	room.BroadcastMessage(srespLoaded, []uint32{})
+
+	if playerCount == uint32(len(loadedPlayerIds)) {
+		// 所有玩家均已加载完毕，进入游戏阶段
+		// world 无方法需要调用，因为通过step来进行游戏开始
+		room.RoomStage.ForwardStage()
+		innerStage := &messages.ResponseStageChange{NewStage: uint32(constants.STAGE_InGame)}
+		sresp := &messages.SessionResponse{Payload: &messages.SessionResponse_StageChange{StageChange: innerStage}}
+		room.BroadcastMessage(sresp, []uint32{})
+	}
 }
 
 // 处理游戏中帧数据
@@ -115,6 +172,9 @@ func (room *Room) handleEndGame(from *client.Client, payload *messages.SessionRe
 	}
 	if room.Game.OnHandleEndGame(from.GetID(), payload.EndGame.GetStatusCode(), payload.EndGame.GetData()) {
 		room.RoomStage.Store(constants.STAGE_PostGame)
+		innerStage := &messages.ResponseStageChange{NewStage: uint32(constants.STAGE_PostGame)}
+		sresp := &messages.SessionResponse{Payload: &messages.SessionResponse_StageChange{StageChange: innerStage}}
+		room.BroadcastMessage(sresp, []uint32{})
 	}
 }
 
@@ -129,6 +189,9 @@ func (room *Room) handlePostGameData(from *client.Client, payload *messages.Sess
 	backToLobby := room.Game.OnHandlePostGameData(from.GetID(), payload.PostGameData.GetData())
 	if backToLobby {
 		room.RoomStage.Store(constants.STAGE_InLobby)
+		innerStage := &messages.ResponseStageChange{NewStage: uint32(constants.STAGE_InLobby)}
+		sresp := &messages.SessionResponse{Payload: &messages.SessionResponse_StageChange{StageChange: innerStage}}
+		room.BroadcastMessage(sresp, []uint32{})
 	}
 }
 

@@ -26,6 +26,9 @@ type IGameWorld interface {
 	// OnHandleReady 当有玩家在准备阶段切换准备状态时调用
 	OnHandleReady(uid uint32, isReady bool, extraData []byte)
 
+	// OnHandleAllReady 当所有玩家准备好时调用
+	OnHandleAllReady() (extraData []byte)
+
 	// OnHandleToLobbyStage 当有玩家请求返回大厅时调用
 	OnHandleToLobbyStage(uid uint32, extraData []byte) (canEnter bool)
 

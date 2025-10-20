@@ -81,7 +81,7 @@ func (room *Room) handleRegister(player *client.Client) {
 	room.ClientsContainer.AddUser(player)
 	reconnKey, err := room.JwtService.GenerateToken(player.GetID(), room.ID)
 	if err != nil {
-		resp := &messages.ResponseJoin{
+		innerResp := &messages.ResponseJoin{
 			Code: 500,
 			Payload: &messages.ResponseJoin_Fail{
 				Fail: &messages.ResponseJoinFail{
@@ -89,7 +89,10 @@ func (room *Room) handleRegister(player *client.Client) {
 				},
 			},
 		}
-		b, err := proto.Marshal(resp)
+		sresp := &messages.SessionResponse{
+			Payload: &messages.SessionResponse_Join{Join: innerResp},
+		}
+		b, err := proto.Marshal(sresp)
 		if err == nil {
 			room.SendMessageToUserByPlayer(b, player)
 		}
@@ -105,7 +108,7 @@ func (room *Room) handleRegister(player *client.Client) {
 		PlayerIDs:      room.Clients.ToSlice(),
 		Data:           extraData,
 	}
-	resp := &messages.ResponseJoin{
+	innerResp := &messages.ResponseJoin{
 		Code: 200,
 		Payload: &messages.ResponseJoin_Success{
 			Success: &messages.ResponseJoinSuccess{
@@ -116,13 +119,14 @@ func (room *Room) handleRegister(player *client.Client) {
 			},
 		},
 	}
-	b, err := proto.Marshal(resp)
+	sresp := &messages.SessionResponse{Payload: &messages.SessionResponse_Join{Join: innerResp}}
+	b, err := proto.Marshal(sresp)
 	if err == nil {
 		room.SendMessageToUserByPlayer(b, player)
 	}
 
 	// 制作当前 peers 信息并广播房间信息
-	room.BroadcastMessage(resp, []uint32{})
+	room.BroadcastMessage(sresp, []uint32{})
 
 	log.Printf("🔵 Player %d successfully registered", player.GetID())
 
@@ -151,10 +155,11 @@ func (room *Room) handleUnregister(player *client.Client) {
 		CurrentPlayers: int32(room.GetPlayerCount()),
 		PlayerIDs:      room.Clients.ToSlice(),
 	}
-	resp := &messages.ResponseRoomInfoChanged{
+	innerRoomInfoResp := &messages.ResponseRoomInfoChanged{
 		RoomInfo: roomInfo,
 	}
-	room.BroadcastMessage(resp, []uint32{player.GetID()})
+	srespRoomInfo := &messages.SessionResponse{Payload: &messages.SessionResponse_RoomInfoChanged{RoomInfoChanged: innerRoomInfoResp}}
+	room.BroadcastMessage(srespRoomInfo, []uint32{player.GetID()})
 }
 
 // handlePlayerMessage 处理玩家消息
