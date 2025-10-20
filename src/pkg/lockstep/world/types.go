@@ -59,12 +59,6 @@ func CalculateChecksum(fd *FrameData) uint64 {
 	return h.Sum64()
 }
 
-// SetChecksum 是一个辅助方法，用于计算并设置 FrameData 的 Checksum 字段。
-// 必须在发送之前调用
-func SetChecksum(fd *FrameData) {
-	fd.Checksum = CalculateChecksum(fd)
-}
-
 // Snapshot 表示游戏世界的状态快照
 type Snapshot interface {
 	GetData() []byte

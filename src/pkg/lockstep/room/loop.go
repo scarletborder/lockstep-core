@@ -226,27 +226,28 @@ func (room *Room) stepGameTick() {
 	// 这一次step行为的目标帧号
 	nextRenderFrame := room.SyncData.NextFrameID.Load()
 
+	// 预组装所有帧数据以优化发送
+	var oldestAck uint32 = 0xFFFFFFFF
+	room.ClientsContainer.Clients.Range(func(key uint32, value *client.Client) bool {
+		ack := value.LatestAckNextFrameID.Load()
+		if ack < nextRenderFrame {
+			oldestAck = ack
+		}
+		return true
+	})
+
 	// 步进到下一帧所需的FrameData
 	frameData := room.Game.GetFrameData(nextRenderFrame, world.WorldOptions{
 		ChunkID: 0,
 	})
+	frameData.OldestAckFrameId = oldestAck
 
 	room.SyncData.StoreFrame(nextRenderFrame, &frameData)
 
 	// 步进，防止耗时的发送操作阻塞逻辑更新
 	room.SyncData.NextFrameID.Add(1)
 
-	// 预组装所有帧数据以优化发送
-	var oldestAsk uint32 = 0xFFFFFFFF
-	room.ClientsContainer.Clients.Range(func(key uint32, value *client.Client) bool {
-		ack := value.LatestAckNextFrameID.Load()
-		if ack < nextRenderFrame {
-			oldestAsk = ack
-		}
-		return true
-	})
-
-	if oldestAsk == 0xFFFFFFFF {
+	if oldestAck == 0xFFFFFFFF {
 		// 发送空
 		resp := &messages.SessionResponse{
 			Payload: &messages.SessionResponse_InGameFrames{
@@ -270,8 +271,8 @@ func (room *Room) stepGameTick() {
 		return
 	}
 
-	allFrames := make([]*messages.FrameData, 0, nextRenderFrame-oldestAsk)
-	for i := oldestAsk + 1; i <= nextRenderFrame; i++ {
+	allFrames := make([]*messages.FrameData, 0, nextRenderFrame-oldestAck)
+	for i := oldestAck + 1; i <= nextRenderFrame; i++ {
 		if frame, ok := room.SyncData.GetFrame(i); ok {
 			allFrames = append(allFrames, (*messages.FrameData)(frame))
 		}
@@ -286,7 +287,7 @@ func (room *Room) stepGameTick() {
 			if ack >= nextRenderFrame {
 				return
 			}
-			frames := allFrames[ack-oldestAsk : nextRenderFrame-oldestAsk]
+			frames := allFrames[ack-oldestAck : nextRenderFrame-oldestAck]
 			resp := &messages.SessionResponse{
 				Payload: &messages.SessionResponse_InGameFrames{
 					InGameFrames: &messages.ResponseInGameFrames{

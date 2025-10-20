@@ -262,6 +262,7 @@ export interface ClientInputData {
     frameId: number;
     /**
      * 解析后的框架无关的额外Bytes,不带有帧ID的原始输入队列
+     * 当然也可以是一个键盘扫描码byte
      * e.g. [{"method" : "move", "direction": "up"}, {"method": "attack", "targetID": 1234}]
      *
      * @generated from protobuf field: bytes data = 3
@@ -306,25 +307,26 @@ export interface FrameData {
      */
     frameId: number;
     /**
+     * 服务端确认客户端的最早要步进到的ack帧ID
+     * 以方便客户端缓存快照以时间回溯
+     *
+     * @generated from protobuf field: uint32 oldestAckFrameId = 5
+     */
+    oldestAckFrameId: number;
+    /**
      * 帧数据内容
      * ---
-     * 包含了本帧所有用户的输入
+     * 包含了本帧服务器接受到的现在或迟到所有用户的输入
      *
      * @generated from protobuf field: repeated messages.ClientInputData input_array = 2
      */
     inputArray: ClientInputData[];
     /**
-     * 包含了本帧发生的所有游戏世界事件
+     * 包含了本帧或迟到的权威服务器裁决的发生的所有游戏世界事件
      *
      * @generated from protobuf field: repeated messages.WorldEventData events = 3
      */
     events: WorldEventData[];
-    /**
-     * Checksum 的类型应为 uint64 以接收 xxh3.Sum64() 的结果
-     *
-     * @generated from protobuf field: uint64 checksum = 4
-     */
-    checksum: bigint;
 }
 /**
  * @generated from protobuf message messages.ResponseInGameFrames
@@ -1164,17 +1166,17 @@ class FrameData$Type extends MessageType<FrameData> {
     constructor() {
         super("messages.FrameData", [
             { no: 1, name: "frame_id", kind: "scalar", T: 13 /*ScalarType.UINT32*/ },
+            { no: 5, name: "oldestAckFrameId", kind: "scalar", T: 13 /*ScalarType.UINT32*/ },
             { no: 2, name: "input_array", kind: "message", repeat: 2 /*RepeatType.UNPACKED*/, T: () => ClientInputData },
-            { no: 3, name: "events", kind: "message", repeat: 2 /*RepeatType.UNPACKED*/, T: () => WorldEventData },
-            { no: 4, name: "checksum", kind: "scalar", T: 4 /*ScalarType.UINT64*/, L: 0 /*LongType.BIGINT*/ }
+            { no: 3, name: "events", kind: "message", repeat: 2 /*RepeatType.UNPACKED*/, T: () => WorldEventData }
         ]);
     }
     create(value?: PartialMessage<FrameData>): FrameData {
         const message = globalThis.Object.create((this.messagePrototype!));
         message.frameId = 0;
+        message.oldestAckFrameId = 0;
         message.inputArray = [];
         message.events = [];
-        message.checksum = 0n;
         if (value !== undefined)
             reflectionMergePartial<FrameData>(this, message, value);
         return message;
@@ -1187,14 +1189,14 @@ class FrameData$Type extends MessageType<FrameData> {
                 case /* uint32 frame_id */ 1:
                     message.frameId = reader.uint32();
                     break;
+                case /* uint32 oldestAckFrameId */ 5:
+                    message.oldestAckFrameId = reader.uint32();
+                    break;
                 case /* repeated messages.ClientInputData input_array */ 2:
                     message.inputArray.push(ClientInputData.internalBinaryRead(reader, reader.uint32(), options));
                     break;
                 case /* repeated messages.WorldEventData events */ 3:
                     message.events.push(WorldEventData.internalBinaryRead(reader, reader.uint32(), options));
-                    break;
-                case /* uint64 checksum */ 4:
-                    message.checksum = reader.uint64().toBigInt();
                     break;
                 default:
                     let u = options.readUnknownField;
@@ -1217,9 +1219,9 @@ class FrameData$Type extends MessageType<FrameData> {
         /* repeated messages.WorldEventData events = 3; */
         for (let i = 0; i < message.events.length; i++)
             WorldEventData.internalBinaryWrite(message.events[i], writer.tag(3, WireType.LengthDelimited).fork(), options).join();
-        /* uint64 checksum = 4; */
-        if (message.checksum !== 0n)
-            writer.tag(4, WireType.Varint).uint64(message.checksum);
+        /* uint32 oldestAckFrameId = 5; */
+        if (message.oldestAckFrameId !== 0)
+            writer.tag(5, WireType.Varint).uint32(message.oldestAckFrameId);
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);

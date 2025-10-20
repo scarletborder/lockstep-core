@@ -105,6 +105,7 @@ message ClientInputData {
   uint32 frame_id = 2;
 
   // 解析后的框架无关的额外Bytes,不带有帧ID的原始输入队列
+  // 当然也可以是一个键盘扫描码byte
   // e.g. [{"method" : "move", "direction": "up"}, {"method": "attack", "targetID": 1234}]
   bytes data = 3;
 }
@@ -129,15 +130,16 @@ message FrameData {
   // 告知客户端，之前的帧中有遗漏的操作和时间发生
   uint32 frame_id = 1;
 
+  // 服务端确认客户端的最早要步进到的ack帧ID
+  // 以方便客户端缓存快照以时间回溯
+  uint32 oldestAckFrameId = 5; 
+
   // 帧数据内容
   // ---
-  // 包含了本帧所有用户的输入
+  // 包含了本帧服务器接受到的现在或迟到所有用户的输入
   repeated ClientInputData input_array = 2;
-  // 包含了本帧发生的所有游戏世界事件
+  // 包含了本帧或迟到的权威服务器裁决的发生的所有游戏世界事件
   repeated WorldEventData events = 3;
-
-  // Checksum 的类型应为 uint64 以接收 xxh3.Sum64() 的结果
-  uint64 checksum = 4;
 }
 
 message ResponseInGameFrames {
