@@ -142,7 +142,19 @@ func (room *Room) handleUnregister(player *client.Client) {
 		player.Session.Close()
 	}
 
-	// TODO: 广播人数变化
+	room.Game.OnPlayerLeave(player.GetID())
+
+	// 广播人数变化
+	roomInfo := &messages.RoomInfo{
+		RoomKey:        room.key,
+		MaxPlayers:     int32(room.MaxClientPerRoom),
+		CurrentPlayers: int32(room.GetPlayerCount()),
+		PlayerIDs:      room.Clients.ToSlice(),
+	}
+	resp := &messages.ResponseRoomInfoChanged{
+		RoomInfo: roomInfo,
+	}
+	room.BroadcastMessage(resp, []uint32{player.GetID()})
 }
 
 // handlePlayerMessage 处理玩家消息
