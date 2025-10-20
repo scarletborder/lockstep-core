@@ -111,13 +111,14 @@ message ClientInputData {
 }
 
 // 游戏事件
+// 帧同步游戏事件中，客户端也能通过InputData计算出和权威游戏世界相同的权威结果
+// 因此事件数据主要用于无法通过 InputData 计算出的结果，例如无关游戏逻辑的私聊等
 message WorldEventData {
   // 事件对哪个帧号造成影响
   // 即事件后的下一帧
   uint32 frame_id = 1;
 
   // 事件的原始数据队列
-  // e.g. [{"eventType": "explosion", "position": [100,200]}]
   //
   // 如果是超大地图需要分chunk的游戏，此data也推荐用于顺便携带某next帧的某chunk状态同步数据
   bytes data = 2;
