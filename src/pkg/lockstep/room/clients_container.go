@@ -28,6 +28,11 @@ func (rc *ClientsContainer) GetNextUserID() (uint32, error) {
 	return rc.SafeIDAllocator.Allocate()
 }
 
+func (rc *ClientsContainer) HasUser(uid uint32) bool {
+	_, ok := rc.Clients.Load(uid)
+	return ok
+}
+
 // 内置方法
 
 // Reset 重置状态以允许下场游戏

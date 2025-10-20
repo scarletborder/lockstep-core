@@ -48,3 +48,15 @@ func (pm *PlayerMap) Len() int {
 	})
 	return count
 }
+
+func (pm *PlayerMap) ToSlice() []uint32 {
+	ids := make([]uint32, 0)
+	pm.m.Range(func(k, _ interface{}) bool {
+		ki, ok := k.(uint32)
+		if ok {
+			ids = append(ids, ki)
+		}
+		return true
+	})
+	return ids
+}

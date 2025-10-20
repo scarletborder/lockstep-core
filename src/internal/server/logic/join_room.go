@@ -7,19 +7,17 @@ import (
 	"lockstep-core/src/pkg/lockstep/session"
 	"log"
 	"net/http"
-
-	"github.com/google/uuid"
 )
 
 // JoinRoomRequest 包含加入房间所需的信息
 type JoinRoomRequest struct {
-	RoomID uint32
-	Key    string // 可选密钥参数
+	RoomID         uint32
+	Key            string // 可选密钥参数
+	ReconnectToken string // 可选重连令牌
 }
 
 // JoinRoomResponse 包含加入房间的结果
 type JoinRoomResponse struct {
-	PlayerID   int
 	UserID     uint32
 	RoomID     uint32
 	ClientInfo *client.Client
@@ -31,6 +29,8 @@ func ValidateJoinRoom(
 	roomManager room.IRoomManager,
 	req *JoinRoomRequest,
 ) (*room.Room, uint16, error) {
+	var isReconnect bool = false
+
 	if req == nil {
 		return nil, http.StatusBadRequest, fmt.Errorf("request cannot be nil")
 	}
@@ -43,6 +43,24 @@ func ValidateJoinRoom(
 	r, ok := roomManager.GetRoom(req.RoomID)
 	if !ok {
 		return nil, http.StatusNotFound, fmt.Errorf("room %d not found", req.RoomID)
+	}
+
+	// 重连请求
+	if req.ReconnectToken != "" {
+		parsed, ok := r.JwtService.ParseToken(req.ReconnectToken)
+		if !ok {
+			return nil, http.StatusUnauthorized, fmt.Errorf("invalid reconnect token for room %d", req.RoomID)
+		} else if parsed.RoomID != req.RoomID {
+			return nil, http.StatusUnauthorized, fmt.Errorf("reconnect token roomID mismatch for room %d", req.RoomID)
+		} else {
+			user, _ := r.ClientsContainer.Clients.Load(parsed.UserID)
+			// 如果没有找到用户，说明unregister了，不需要在意
+			if user.Session.IsConnected() {
+				return nil, http.StatusConflict, fmt.Errorf("user %d already connected in room %d", parsed.UserID, req.RoomID)
+			} else {
+				isReconnect = true
+			}
+		}
 	}
 
 	// 检查房间是否满员
@@ -59,6 +77,13 @@ func ValidateJoinRoom(
 		}
 	}
 
+	// 游戏世界特殊设置
+	if r.Game != nil {
+		if !r.Game.CouldJoinRoom(isReconnect) {
+			return nil, http.StatusForbidden, fmt.Errorf("cannot join room %d due to game rules", req.RoomID)
+		}
+	}
+
 	return r, http.StatusOK, nil
 }
 
@@ -67,20 +92,28 @@ func ValidateJoinRoom(
 func JoinRoom(
 	r *room.Room,
 	sessionImpl session.ISession,
+	reconnectToken string,
 ) (*JoinRoomResponse, error) {
-	// 获取下一个用户 ID
-	nextUserId, err := r.GetNextUserID()
-	if err != nil {
-		return nil, fmt.Errorf("failed to get next user ID: %w", err)
+	var nextUserId uint32
+	var err error
+	var isReconnect bool = false
+	if reconnectToken != "" {
+		parse, _ := r.JwtService.ParseToken(reconnectToken)
+		nextUserId = parse.UserID
+		isReconnect = true
+	} else {
+		// 获取下一个用户 ID
+		nextUserId, err = r.GetNextUserID()
+		if err != nil {
+			return nil, fmt.Errorf("failed to get next user ID: %w", err)
+		}
 	}
-
-	// 为玩家生成唯一 ID（使用 UUID 的数字部分）
-	playerIDNum := int(uuid.New().ID())
 
 	// 创建客户端
 	playerClient := client.NewClient(nextUserId, sessionImpl, r.GetIncomingMessagesChan())
+	playerClient.IsReconnected = isReconnect
 
-	log.Printf("Player %d joining room %d (user ID: %d)", playerIDNum, r.ID, nextUserId)
+	log.Printf("Player joining room %d (user ID: %d)", r.ID, nextUserId)
 
 	// 将玩家添加到房间（这会发送到 register channel）
 	r.RegisterPlayer(playerClient)
@@ -90,7 +123,6 @@ func JoinRoom(
 	go r.StartServeClient(playerClient)
 
 	return &JoinRoomResponse{
-		PlayerID:   playerIDNum,
 		UserID:     nextUserId,
 		RoomID:     r.ID,
 		ClientInfo: playerClient,

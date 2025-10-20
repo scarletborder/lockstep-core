@@ -193,7 +193,7 @@ func (h *Serverandlers) JoinRoomHandler(w http.ResponseWriter, r *http.Request) 
 		session_impl = session.NewWebsocketSession(wsConn)
 	}
 
-	resp, err := logic.JoinRoom(room, session_impl)
+	resp, err := logic.JoinRoom(room, session_impl, joinReq.ReconnectToken)
 	if err != nil {
 		session_impl.Close()
 		errResp := &messages.ErrorResponse{
@@ -204,7 +204,7 @@ func (h *Serverandlers) JoinRoomHandler(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	log.Printf("Player %d successfully joined room %d", resp.PlayerID, resp.RoomID)
+	log.Printf("Player %d successfully joined room %d", resp.UserID, resp.RoomID)
 }
 
 // HealthCheckHandler 处理健康检查和根路径请求 (GET /)

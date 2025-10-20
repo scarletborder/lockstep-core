@@ -1,6 +1,7 @@
 package room
 
 import (
+	"fmt"
 	"lockstep-core/src/constants"
 	"lockstep-core/src/messages"
 	"lockstep-core/src/pkg/lockstep/client"
@@ -75,18 +76,56 @@ func (room *Room) handleRegister(player *client.Client) {
 	// 更新房间活跃时间
 	room.UpdateActiveTime()
 
-	// 在 Lobby 状态下才允许新玩家加入
-	if room.RoomStage.EqualTo(constants.STAGE_InLobby) {
-		log.Printf("🔵 Room is in lobby state, adding player %d", player.GetID())
-		// 向 context 中注册用户
-		room.ClientsContainer.AddUser(player)
-
-		// TODO: 制作当前 peers 信息 JSON 并广播房间信息
-		log.Printf("🔵 Player %d successfully registered", player.GetID())
-	} else {
-		// 拒绝加入
-		log.Printf("🔴 Registration rejected for player %d - room not in lobby state", player.GetID())
+	log.Printf("🔵 Room is in lobby state, adding player %d", player.GetID())
+	// 向 context 中注册用户
+	room.ClientsContainer.AddUser(player)
+	reconnKey, err := room.JwtService.GenerateToken(player.GetID(), room.ID)
+	if err != nil {
+		resp := &messages.ResponseJoin{
+			Code: 500,
+			Payload: &messages.ResponseJoin_Fail{
+				Fail: &messages.ResponseJoinFail{
+					Message: fmt.Sprintf("Fail to Generate reconnect token: %s", err.Error()),
+				},
+			},
+		}
+		b, err := proto.Marshal(resp)
+		if err == nil {
+			room.SendMessageToUserByPlayer(b, player)
+		}
+		log.Printf("🔴 Failed to generate reconnect token for player %d: %v", player.GetID(), err)
+		return
 	}
+	extraData := room.Game.OnPlayerJoin(player.GetID(), player.IsReconnected)
+	// 发送欢迎消息
+	roomInfo := &messages.RoomInfo{
+		RoomKey:        room.key,
+		MaxPlayers:     int32(room.MaxClientPerRoom),
+		CurrentPlayers: int32(room.GetPlayerCount()),
+		PlayerIDs:      room.Clients.ToSlice(),
+		Data:           extraData,
+	}
+	resp := &messages.ResponseJoin{
+		Code: 200,
+		Payload: &messages.ResponseJoin_Success{
+			Success: &messages.ResponseJoinSuccess{
+				RoomID:         room.ID,
+				MyID:           player.GetID(),
+				ReconnectToken: reconnKey,
+				RoomInfo:       roomInfo,
+			},
+		},
+	}
+	b, err := proto.Marshal(resp)
+	if err == nil {
+		room.SendMessageToUserByPlayer(b, player)
+	}
+
+	// 制作当前 peers 信息并广播房间信息
+	room.BroadcastMessage(resp, []uint32{})
+
+	log.Printf("🔵 Player %d successfully registered", player.GetID())
+
 }
 
 // handleUnregister 处理玩家注销

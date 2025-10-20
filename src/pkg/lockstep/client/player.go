@@ -69,6 +69,7 @@ type Client struct {
 	IsReady  bool // 是否准备好
 	IsLoaded bool // 是否加载完毕
 
+	IsReconnected bool // 是否为重连玩家
 	// 游戏数据 (用于防作弊验证)
 	// Deprecated, 在游戏世界中做验证
 	// LastEnergySum  int32 // 上一次用户的能量总和

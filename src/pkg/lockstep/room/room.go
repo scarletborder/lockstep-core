@@ -5,6 +5,7 @@ import (
 	"lockstep-core/src/config"
 	"lockstep-core/src/constants"
 	"lockstep-core/src/messages"
+	"lockstep-core/src/utils"
 
 	"lockstep-core/src/pkg/lockstep/client"
 	lockstep_sync "lockstep-core/src/pkg/lockstep/sync"
@@ -42,8 +43,8 @@ type Room struct {
 	ID   uint32
 	Name string
 	// 安全
-	key string // 房间密钥
-
+	key        string // 房间密钥
+	JwtService *utils.JWTService
 	// 游戏逻辑世界
 	Game world.IGameWorld
 
@@ -90,10 +91,10 @@ func NewRoom(id uint32, stopChan chan uint32, o RoomOptions) *Room {
 	channel.Reset()
 
 	return &Room{
-		ID:   id,
-		Name: o.name,
-		key:  o.key,
-
+		ID:         id,
+		Name:       o.name,
+		key:        o.key,
+		JwtService: utils.NewJWTService(),
 		// lockstep
 		GameTicker:     nil,
 		SyncData:       lockstep_sync.NewServerSyncData(),
